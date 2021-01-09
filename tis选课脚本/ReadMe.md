@@ -5,4 +5,4 @@
 - userCache.json为课程信息的数据，请保留  
 - Class.txt为需要选择的课程列表，一行一个数据，因编码问题，第一行请留空或不要编辑。  
 课程列表添加说明：  
-[!课程名称说明]()
+![课程名称说明](https://github.com/GhostFrankWu/SUSTech_Tools/blob/main/tis%E9%80%89%E8%AF%BE%E8%84%9A%E6%9C%AC/help.png)
