@@ -38,11 +38,22 @@ def submit(route,JSESSIONID,id):
         "x-requested-with": "XMLHttpRequest"
     }
     data = {
-        "p_xktjz": "rwtjzyx",#rwtjzgwc提交至购物车，rwtjzyx提交至已选 gwctjzyx购物车提交至已选
-        "p_xn": "2020-2021",#学年
-        "p_xq": 2,#学期
+         "p_pylx": 1,
+        "p_sfgldjr": 0,#是否管理端进入
+        "p_sfredis": 0,
+        "p_sfsyxkgwc": 0,
+        "p_xktjz": "rwtjzyx",#提交至，可选任务，rwtjzgwc提交至购物车，rwtjzyx提交至已选 gwctjzyx购物车提交至已选
+        "p_xn": "2020-2021",
+        "p_xq": 2,
+        "p_xnxq": "2020-20212",
+        "p_dqxn": "2020-2021",
+        "p_dqxq": 2,
+        "p_dqxnxq": "2020-20211",
         "p_xkfsdm": "bxxk",#补选选课
-        "p_id":id #课程id
+        "p_id":id, #课程id
+        "p_sfhlctkc":0,#是否忽略冲突课程
+        "p_sfhllrlkc":0,#是否忽略零容量课程
+        "p_sfxsgwckb":1,#固定
         }
     req = requests.post('https://tis.sustech.edu.cn/Xsxk/addGouwuche',data=data,headers=headers)
     t=req.text 
@@ -103,3 +114,5 @@ if __name__ =='__main__':
                 _thread.start_new_thread(submit,(route,JSESSIONID,id) )
             except:
                 print ("线程异常")
+
+            
