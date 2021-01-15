@@ -7,7 +7,7 @@ from os import path
 import _thread
 
 def caslogin(userName,passWord):
-    loginUrl="https://cas.sustech.edu.cn/cas/login?service=https%3A%2F%2Ftis.sustech.edu.cn%2FcasLogin"
+    loginUrl="https://cas.sustech.edu.cn/cas/login?service=https%3A%2F%2Ftis.sustech.edu.cn%2Fcas"
     req=requests.get(loginUrl)
     if(req.status_code == 200):
         print("成功连接到CAS...")
