@@ -7,7 +7,6 @@ import _thread
 from colorama import init
 init(autoreset=True)
 
-
 def caslogin(token, userName, passWord):
     print("[\x1b[0;36m!\x1b[0m] " + "测试CAS链接...")
     try:
@@ -136,7 +135,8 @@ if __name__ == '__main__':
     print("[\x1b[0;32m+\x1b[0m] " + "成功读入以上信息")
     # 抢课主逻辑
     while True:
-        input("[\x1b[0;32m+\x1b[0m] " + "按任意键抢一次，多按同时抢多次")
+        print("[\x1b[0;32m+\x1b[0m] " + "按任意键抢一次，多按同时抢多次")
+        input()
         for id in postList:
             try:
                 _thread.start_new_thread(submit, (route, JSESSIONID, id))
