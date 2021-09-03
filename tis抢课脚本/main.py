@@ -4,6 +4,9 @@ from getpass import getpass
 from re import findall
 from os import path
 import _thread
+import colorama
+from colorama import init
+init(autoreset=True)
 
 
 def caslogin(token, userName, passWord):
