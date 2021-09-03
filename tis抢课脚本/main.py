@@ -123,7 +123,7 @@ if __name__ == '__main__':
     for i in rawClassData['rwList']['list']:
         classData[i['rwmc']]=i['id']
     print("[\x1b[0;32m+\x1b[0m] " + "课程信息读取完毕")
-    print("[\x1b[0;34m{}\x1b[0m]".format("="*20))
+    print("[\x1b[0;34m{}\x1b[0m]".format("="*25))
     # 准备要抢的课程
     postList = []
     for name in classList:
@@ -135,10 +135,12 @@ if __name__ == '__main__':
     print("[\x1b[0;32m+\x1b[0m] " + "成功读入以上信息")
     # 抢课主逻辑
     while True:
-        print("[\x1b[0;32m+\x1b[0m] " + "按任意键抢一次，多按同时抢多次")
+        print("[\x1b[0;32m+\x1b[0m] " + "按一下回车抢三次，多按同时抢多次")
         input()
         for id in postList:
             try:
+                _thread.start_new_thread(submit, (route, JSESSIONID, id))
+                _thread.start_new_thread(submit, (route, JSESSIONID, id))
                 _thread.start_new_thread(submit, (route, JSESSIONID, id))
             except:
                 print("线程异常")
