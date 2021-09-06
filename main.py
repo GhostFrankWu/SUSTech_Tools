@@ -6,15 +6,17 @@ from os import path
 import _thread
 from colorama import init
 
-init(autoreset=True)
+
 xueNian = "2021-2022"
 xueQi = 1
-xueNianXueQi = xueNian+str(xueQi)
+xueNianXueQi = xueNian + str(xueQi)
+
 
 def caslogin(token, userName, passWord):
     print("[\x1b[0;36m!\x1b[0m] " + "测试CAS链接...")
     try:
-        loginUrl = "https://cas.sustech.edu.cn/cas/login?service=https%3A%2F%2Ftis.sustech.edu.cn%2Fcas"  # removed Login
+        # Login 服务的CAS链接有时候会变
+        loginUrl = "https://cas.sustech.edu.cn/cas/login?service=https%3A%2F%2Ftis.sustech.edu.cn%2Fcas"
         req = token.get(loginUrl)
         assert (req.status_code == 200)
         print("[\x1b[0;32m+\x1b[0m] " + "成功连接到CAS...")
@@ -82,6 +84,7 @@ def submit(route, JSESSIONID, id):
 
 
 if __name__ == '__main__':
+    init(autoreset=True)
     token = requests.session()
     # 获取要抢的课程
     cachePath = "Class.txt"
@@ -110,7 +113,7 @@ if __name__ == '__main__':
     route, JSESSIONID = "", ""
     while route == "" or JSESSIONID == "":
         userName = input("请输入您的学号：")
-        passWord = input("请输入CAS密码（密码不显示，输入完按回车即可）：")
+        passWord = getpass("请输入CAS密码（密码不显示，输入完按回车即可）：")
         route, JSESSIONID = caslogin(token, userName, passWord)
         if route == "" or JSESSIONID == "":
             print("请重试...")
