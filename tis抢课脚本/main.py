@@ -5,7 +5,11 @@ from re import findall
 from os import path
 import _thread
 from colorama import init
+
 init(autoreset=True)
+xueNian = "2021-2022"
+xueQi = 1
+xueNianXueQi = xueNian+str(xueQi)
 
 def caslogin(token, userName, passWord):
     print("[\x1b[0;36m!\x1b[0m] " + "测试CAS链接...")
@@ -43,9 +47,9 @@ def getinfo(route, JSESSIONID):
         "x-requested-with": "XMLHttpRequest"
     }
     data = {
-        "p_xn": "2021-2022",
-        "p_xq": 1,
-        "p_xnxq": "2021-20221",
+        "p_xn": xueNian,
+        "p_xq": xueQi,
+        "p_xnxq": xueNianXueQi,
         "p_chaxunpylx": 3,
         "mxpylx": 3,
         "p_sfhltsxx": 0,
@@ -63,23 +67,17 @@ def submit(route, JSESSIONID, id):
     }
     data = {
         "p_pylx": 1,
-        "p_sfgldjr": 0,  # 是否管理端进入
-        "p_sfredis": 0,
-        "p_sfsyxkgwc": 0,
         "p_xktjz": "rwtjzyx",  # 提交至，可选任务，rwtjzgwc提交至购物车，rwtjzyx提交至已选 gwctjzyx购物车提交至已选
-        "p_xn": "2020-2021",
-        "p_xq": 2,
-        "p_xnxq": "2020-20212",
-        "p_dqxn": "2020-2021",
-        "p_dqxq": 2,
-        "p_dqxnxq": "2020-20211",
+        "p_xn": xueNian,
+        "p_xq": xueQi,
+        "p_xnxq": xueNianXueQi,
         "p_xkfsdm": "bxxk",  # 补选选课
         "p_id": id,  # 课程id
-        "p_sfhlctkc": 0,  # 是否忽略冲突课程
-        "p_sfhllrlkc": 0,  # 是否忽略零容量课程
         "p_sfxsgwckb": 1,  # 固定
     }
     req = requests.post('https://tis.sustech.edu.cn/Xsxk/addGouwuche', data=data, headers=headers)
+    if "成功" in req.text:
+        print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50))
     print(req.text)
 
 
@@ -112,7 +110,7 @@ if __name__ == '__main__':
     route, JSESSIONID = "", ""
     while route == "" or JSESSIONID == "":
         userName = input("请输入您的学号：")
-        passWord = getpass("请输入CAS密码（密码不显示，输入完按回车即可）：")
+        passWord = input("请输入CAS密码（密码不显示，输入完按回车即可）：")
         route, JSESSIONID = caslogin(token, userName, passWord)
         if route == "" or JSESSIONID == "":
             print("请重试...")
@@ -121,9 +119,9 @@ if __name__ == '__main__':
     print("[\x1b[0;36m!\x1b[0m] " + "从服务器下载课程信息...")
     rawClassData = loads(getinfo(route, JSESSIONID))
     for i in rawClassData['rwList']['list']:
-        classData[i['rwmc']]=i['id']
+        classData[i['rwmc']] = i['id']
     print("[\x1b[0;32m+\x1b[0m] " + "课程信息读取完毕")
-    print("[\x1b[0;34m{}\x1b[0m]".format("="*25))
+    print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
     # 准备要抢的课程
     postList = []
     for name in classList:
@@ -131,7 +129,7 @@ if __name__ == '__main__':
         if name in classData.keys():
             postList.append(classData[name])
             print(name)
-    print("[\x1b[0;34m{}\x1b[0m]".format("="*25))
+    print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
     print("[\x1b[0;32m+\x1b[0m] " + "成功读入以上信息")
     # 抢课主逻辑
     while True:
