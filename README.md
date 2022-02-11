@@ -9,14 +9,16 @@
 ![脚本运行界面](https://github.com/GhostFrankWu/SUSTech_Tools/blob/main/screenShots/sc.png)
 
 ## 更新
-最后一次检测可用是2021-9-6，检测结果是 **可用**  
+最后一次**更新脚本**是2022-02-11，**此次更新后代码可用性未经检测**  
+最后一次**检测可用**是2021-09-06，检测结果是 **可用**  
 - 如果您本地有python3.7+环境并希望手动运行/修改代码[访问源代码](https://github.com/GhostFrankWu/SUSTech_Tools/blob/main/main.py)  
 - 如果您本地没有python环境，您可以[使用windows打包版](https://github.com/GhostFrankWu/SUSTech_Tools/releases/tag/2021_9_6)  
 
 
 | 最新日志 | 目前是否可用 | 时间 |  
 -- | -- | --   
-| 修复学年时间bug | √ | 2021-9-6 |  
+| 更新学期参数 | ? | 2022-2-11 |  
+| 修复学年时间bug | - | 2021-9-6 |  
 | 课程id获取更新 | x | 2021-9-3 |  
 | tis登录逻辑更新 | x | 2021-1-10 |  
 | 最早版本 | x | 2021-1-9 |  
