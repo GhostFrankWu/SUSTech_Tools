@@ -8,7 +8,7 @@ from colorama import init
 
 
 xueNian = "2021-2022"
-xueQi = 1
+xueQi = 2
 xueNianXueQi = xueNian + str(xueQi)
 
 
