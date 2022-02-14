@@ -168,7 +168,7 @@ if __name__ == '__main__':
                 print("线程异常")
 
 """
-# timming is everything!
+# timing is everything!
     import datetime,time
     start = datetime.datetime.strptime(str(datetime.datetime.now().date()) + '12:55', '%Y-%m-%d%H:%M')
     end = datetime.datetime.strptime(str(datetime.datetime.now().date()) + '13:05', '%Y-%m-%d%H:%M')
@@ -177,7 +177,7 @@ if __name__ == '__main__':
         if start < n_time < end:
             for c_id in postList:
                 try:
-                    _thread.start_new_thread(submit, (semester_info, c_id))
+                    submit(semester_info, c_id)
                 except:
                     pass
             time.sleep(0xdeadbeef)
