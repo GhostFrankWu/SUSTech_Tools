@@ -1,5 +1,5 @@
 # 南科大Tis选课脚本  
-
+# [该脚本目前不可用于小学期选课，请有需要使用的同学自行更改](https://github.com/GhostFrankWu/SUSTech_Tools/blob/main/main.py#L78-L87)
 **本脚本没有做任何特定混淆/隐蔽手段，如需追求隐蔽性请自行修改**。 
 
 ## 使用说明  
