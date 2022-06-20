@@ -5,9 +5,9 @@
 - main.py为python3编写的主程序，运行即可  
 - Class.txt为需要选择的课程列表，一行一个数据，因编码问题，第一行请留空或不要编辑。  
 课程列表添加说明（图片加载不出请科学加载）：  
-![课程名称说明](https://github.com/GhostFrankWu/SUSTech_Tools/blob/main/screenShots/help.png)  
+![课程名称说明](screenShots/help.png)  
   脚本运行界面：
-![脚本运行界面](https://github.com/GhostFrankWu/SUSTech_Tools/blob/main/screenShots/sc.png)
+![脚本运行界面](screenShots/sc.png)
 
 ## 更新
 最后一次**检测可用**是2021-02-14，检测结果是 **可用**  

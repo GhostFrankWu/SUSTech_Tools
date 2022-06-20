@@ -4,7 +4,7 @@
 main.py 南科大TIS喵课助手
 
 @CreateDate 2021-1-9
-@UpdateDate 2022-2-12
+@UpdateDate 2022-6-20
 """
 
 import _thread
