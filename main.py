@@ -16,7 +16,7 @@ from colorama import init
 from getpass import getpass
 
 head = {
-    "user-agent": "Mozilla/5.0",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.0.0 Safari/537.36",
     "x-requested-with": "XMLHttpRequest"
 }
 
@@ -25,11 +25,10 @@ def cas_login(user_name, pwd):
     """ 用于和南科大CAS认证交互，拿到tis的有效cookie
     输入用于CAS登录的用户名密码，输出tis需要的全部cookie内容(返回头Set-Cookie段的route和jsessionid)
     我的requests的session不吃CAS重定向给到的cookie，不知道是代码哪里的问题，所以就手动拿了 """
-    token = requests.session()
     print("[\x1b[0;36m!\x1b[0m] " + "测试CAS链接...")
     try:  # Login 服务的CAS链接有时候会变
         login_url = "https://cas.sustech.edu.cn/cas/login?service=https%3A%2F%2Ftis.sustech.edu.cn%2Fcas"
-        req = token.get(login_url)
+        req = requests.get(login_url, headers=head)
         assert (req.status_code == 200)
         print("[\x1b[0;32m+\x1b[0m] " + "成功连接到CAS...")
     except:
@@ -42,13 +41,13 @@ def cas_login(user_name, pwd):
         'execution': str(req.text).split('''name="execution" value="''')[1].split('"')[0],
         '_eventId': 'submit',
     }
-    req = token.post(login_url, data=data, allow_redirects=False)
+    req = requests.post(login_url, data=data, allow_redirects=False, headers=head)
     if "Location" in req.headers.keys():
         print("[\x1b[0;32m+\x1b[0m] " + "登录成功")
     else:
         print("[\x1b[0;31mx\x1b[0m] " + "用户名或密码错误，请检查")
         return "", ""
-    req = token.get(req.headers["Location"], allow_redirects=False)
+    req = requests.get(req.headers["Location"], allow_redirects=False, headers=head)
     route_ = findall('route=(.+?);', req.headers["Set-Cookie"])[0]
     jsessionid = findall('JSESSIONID=(.+?);', req.headers["Set-Cookie"])[0]
     return route_, jsessionid
@@ -57,18 +56,39 @@ def cas_login(user_name, pwd):
 def getinfo(semester_data):
     """ 用于向tis请求当前学期的课程ID，得到的ID将用于选课的请求
     输入当前学期的日期信息，返回的json包括了课程名和内部的ID """
-    data = {
-        "p_xn": semester_data['p_dqxn'],  # 当前学年
-        "p_xq": semester_data['p_dqxq'],  # 当前学期
-        "p_xnxq": semester_data['p_dqxnxq'],  # 当前学年学期
-        "p_chaxunpylx": 3,
-        "mxpylx": 3,
-        "p_sfhltsxx": 0,
-        "pageNum": 1,
-        "pageSize": 2000  # 每学期总共开课在1000左右，所以2000可以包括学期的全部课程
-    }
-    req = requests.post('https://tis.sustech.edu.cn/Xsxktz/queryRwxxcxList', data=data, headers=head)
-    return req.text
+    course_list = []
+    course_types = {'bxxk': "通识必修选课", 'xxxk': "通识选修选课", "培养方案内课程": 'kzyxk', "非培养方案内课程": 'zynknjxk'}
+    for course_type in course_types.keys():
+        data = {
+            "p_xn": semester_data['p_xn'],  # 当前学年
+            "p_xq": semester_data['p_xq'],  # 当前学期
+            "p_xnxq": semester_data['p_xnxq'],  # 当前学年学期
+            "p_pylx": 1,
+            "mxpylx": 1,
+            "p_xkfsdm": course_type,
+            "pageNum": 1,
+            "pageSize": 1000  # 每学期总共开课在1000左右，所以单组件可以包括学期的全部课程
+        }
+        req = requests.post('https://tis.sustech.edu.cn/Xsxk/queryKxrw', data=data, headers=head)
+        raw_class_data = loads(req.text)
+        if 'kxrwList' in raw_class_data.keys():
+            for i in raw_class_data['kxrwList']['list']:
+                classData[i['rwmc']] = i['id']
+            # 分析要喵课程的ID
+            for name in classList:
+                name = name.strip()
+                if name in classData.keys():
+                    course_list.append([classData[name], course_type, name])
+
+    print("[\x1b[0;32m+\x1b[0m] " + "课程信息读取完毕")
+    print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
+    for course in course_list:
+        print(course_types[course[1]]+" : "+course[2], end="")
+        print("   ID 为: "+course[0])
+    print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
+    print("[\x1b[0;32m+\x1b[0m] " + "成功读入以上信息")
+    print()
+    return course_list
 
 
 def submit(semester_data, course):
@@ -78,11 +98,11 @@ def submit(semester_data, course):
     data = {
         "p_pylx": 1,
         "p_xktjz": "rwtjzyx",  # 提交至，可选任务，rwtjzgwc提交至购物车，rwtjzyx提交至已选 gwctjzyx购物车提交至已选
-        "p_xn": semester_data['p_dqxn'],
-        "p_xq": semester_data['p_dqxq'],
-        "p_xnxq": semester_data['p_dqxnxq'],
-        "p_xkfsdm": "bxxk",  # 补选选课
-        "p_id": course,  # 课程id
+        "p_xn": semester_data['p_xn'],
+        "p_xq": semester_data['p_xq'],
+        "p_xnxq": semester_data['p_xnxq'],
+        "p_xkfsdm": course[1],  # 选课方式
+        "p_id": course[0],  # 课程id
         "p_sfxsgwckb": 1,  # 固定
     }
     req = requests.post('https://tis.sustech.edu.cn/Xsxk/addGouwuche', data=data, headers=head)
@@ -138,24 +158,13 @@ if __name__ == '__main__':
     # 下面先获取当前的学期
     classData = {}
     print("[\x1b[0;36m!\x1b[0m] " + "从服务器获取当前喵课时间...")
-    semester_info = loads(requests.post('https://tis.sustech.edu.cn/Xsxk/queryXkdqXnxq', headers=head).text)
-    print("[\x1b[0;32m+\x1b[0m] " + f"当前学期是{semester_info['p_dqxn']}学年第{semester_info['p_dqxq']}学期")
+    semester_info = loads(   # 这里要加mxpylx才能获取到选课所在最新学期
+        requests.post('https://tis.sustech.edu.cn/Xsxk/queryXkdqXnxq', data={"mxpylx": 1}, headers=head).text)
+    print("[\x1b[0;32m+\x1b[0m] " + f"当前学期是{semester_info['p_xn']}学年第{semester_info['p_xq']}学期，为"
+                                    f"{['', '秋季', '春季', '小'][int(semester_info['p_xq'])]}学期")
     # 下面获取课程信息
-    print("[\x1b[0;36m!\x1b[0m] " + "从服务器下载课程信息...")
-    rawClassData = loads(getinfo(semester_info))
-    for i in rawClassData['rwList']['list']:
-        classData[i['rwmc']] = i['id']
-    print("[\x1b[0;32m+\x1b[0m] " + "课程信息读取完毕")
-    print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
-    # 下面分析要喵课程的ID
-    postList = []
-    for name in classList:
-        name = name.strip()
-        if name in classData.keys():
-            postList.append(classData[name])
-            print(name)
-    print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
-    print("[\x1b[0;32m+\x1b[0m] " + "成功读入以上信息")
+    print("[\x1b[0;36m!\x1b[0m] " + "从服务器下载课程信息，请稍等...")
+    postList = getinfo(semester_info)
     # 喵课主逻辑
     while True:
         print("[\x1b[0;32m+\x1b[0m] " + "按一下回车喵三次，多按同时喵多次")
