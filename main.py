@@ -57,7 +57,7 @@ def getinfo(semester_data):
     """ 用于向tis请求当前学期的课程ID，得到的ID将用于选课的请求
     输入当前学期的日期信息，返回的json包括了课程名和内部的ID """
     course_list = []
-    course_types = {'bxxk': "通识必修选课", 'xxxk': "通识选修选课", "培养方案内课程": 'kzyxk', "非培养方案内课程": 'zynknjxk'}
+    course_types = {'bxxk': "通识必修选课", 'xxxk': "通识选修选课", "kzyxk": '培养方案内课程', "zynknjxk": '非培养方案内课程'}
     for course_type in course_types.keys():
         data = {
             "p_xn": semester_data['p_xn'],  # 当前学年
@@ -71,6 +71,7 @@ def getinfo(semester_data):
         }
         req = requests.post('https://tis.sustech.edu.cn/Xsxk/queryKxrw', data=data, headers=head)
         raw_class_data = loads(req.text)
+        classData = {}
         if 'kxrwList' in raw_class_data.keys():
             for i in raw_class_data['kxrwList']['list']:
                 classData[i['rwmc']] = i['id']
@@ -83,8 +84,8 @@ def getinfo(semester_data):
     print("[\x1b[0;32m+\x1b[0m] " + "课程信息读取完毕")
     print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
     for course in course_list:
-        print(course_types[course[1]]+" : "+course[2], end="")
-        print("   ID 为: "+course[0])
+        print(course_types[course[1]] + " : " + course[2], end="")
+        print("   ID 为: " + course[0])
     print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
     print("[\x1b[0;32m+\x1b[0m] " + "成功读入以上信息")
     print()
@@ -156,7 +157,6 @@ if __name__ == '__main__':
             print("[\x1b[0;33m-\x1b[0m] " + "请重试...")
     head['cookie'] = f'route={route}; JSESSIONID={JSESSIONID};'
     # 下面先获取当前的学期
-    classData = {}
     print("[\x1b[0;36m!\x1b[0m] " + "从服务器获取当前喵课时间...")
     semester_info = loads(   # 这里要加mxpylx才能获取到选课所在最新学期
         requests.post('https://tis.sustech.edu.cn/Xsxk/queryXkdqXnxq', data={"mxpylx": 1}, headers=head).text)
