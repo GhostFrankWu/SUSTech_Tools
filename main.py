@@ -4,14 +4,15 @@
 main.py 南科大TIS喵课助手
 
 @CreateDate 2021-1-9
-@UpdateDate 2022-6-20
+@UpdateDate 2022-9-2
 """
 
 import _thread
 import requests
+import bs4
 from os import path
 from re import findall
-from json import loads
+from json import loads, load, dump
 from colorama import init
 from getpass import getpass
 
@@ -53,11 +54,19 @@ def cas_login(user_name, pwd):
     return route_, jsessionid
 
 
-def getinfo(semester_data):
+def getinfo(semester_data, g, f):
     """ 用于向tis请求当前学期的课程ID，得到的ID将用于选课的请求
     输入当前学期的日期信息，返回的json包括了课程名和内部的ID """
     course_list = []
-    course_types = {'bxxk': "通识必修选课", 'xxxk': "通识选修选课", "kzyxk": '培养方案内课程', "zynknjxk": '非培养方案内课程'}
+
+    course_types = {'bxxk': "通识必修选课", 'xxxk': "通识选修选课", "kzyxk": '培养方案内课程',
+                    "zynknjxk": '非培养方案内课程'}
+    match g:
+        case "1":
+            course_types = {'bxxk': "通识必修选课", 'xxxk': "通识选修选课", "kzyxk": '培养方案内课程',
+                            "zynknjxk": '非培养方案内课程'}
+        case "2":
+            course_types = {'jhnxk': '计划内选课新生'}
     for course_type in course_types.keys():
         data = {
             "p_xn": semester_data['p_xn'],  # 当前学年
@@ -71,25 +80,60 @@ def getinfo(semester_data):
         }
         req = requests.post('https://tis.sustech.edu.cn/Xsxk/queryKxrw', data=data, headers=head)
         raw_class_data = loads(req.text)
+
         classData = {}
         if 'kxrwList' in raw_class_data.keys():
             for i in raw_class_data['kxrwList']['list']:
                 classData[i['rwmc']] = i['id']
             # 分析要喵课程的ID
-            for name in classList:
-                name = name.strip()
-                if name in classData.keys():
-                    course_list.append([classData[name], course_type, name])
+            if classList == False:
+                Data = []
+                for i in raw_class_data['kxrwList']['list']:
+                    soup = bs4.BeautifulSoup(i['kcxx'])
+                    time = soup.find_all("span", {"class": "ivu-tag-text"})[0]
+                    time = time.contents
+                    Data.append({'name': i['rwmc'], 'id': i['id'], 'time': str(time), 'submit': 0})
 
-    print("[\x1b[0;32m+\x1b[0m] " + "课程信息读取完毕")
-    print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
-    for course in course_list:
-        print(course_types[course[1]] + " : " + course[2], end="")
-        print("   ID 为: " + course[0])
-    print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
-    print("[\x1b[0;32m+\x1b[0m] " + "成功读入以上信息")
-    print()
-    return course_list
+                print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
+                for i in Data:
+                    print(i)
+                print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
+                print("[\x1b[0;32m+\x1b[0m] " + "成功读入以上信息")
+                with open('Class.json', 'w') as outfile:
+                    dump(Data, outfile, ensure_ascii=False)
+                print("[\x1b[0;32m+\x1b[0m] " + "以上信息已写入Class.json文件中，请修改其中的“submit”为1来进行选课")
+                print("[\x1b[0;32m!\x1b[0m] " + "请重新启动")
+                return False
+            else:
+                match f:
+                    case "1":
+                        for name in classList:
+                            name = name.strip()
+                            if name in classData.keys():
+                                course_list.append([classData[name], course_type, name])
+                        print("[\x1b[0;32m+\x1b[0m] " + "课程信息读取完毕")
+                        print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
+                        for course in course_list:
+                            print(course_types[course[1]] + " : " + course[2], end="")
+                            print("   ID 为: " + course[0])
+                        print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
+                        print("[\x1b[0;32m+\x1b[0m] " + "成功读入以上信息")
+                        print()
+                        return course_list
+                    case "2":
+                        for item in classList:
+                            name = item["name"]
+                            if name in classData.keys():
+                                course_list.append([classData[name], course_type, name])
+                        print("[\x1b[0;32m+\x1b[0m] " + "课程信息读取完毕")
+                        print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
+                        for course in course_list:
+                            print(course_types[course[1]] + " : " + course[2], end="")
+                            print("   ID 为: " + course[0])
+                        print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
+                        print("[\x1b[0;32m+\x1b[0m] " + "成功读入以上信息")
+                        print()
+                        return course_list
 
 
 def submit(semester_data, course):
@@ -144,10 +188,37 @@ def load_course():
     return classes
 
 
+def load_course_json():
+    cache_path = "Class.json"
+    classes = []
+    if path.exists(cache_path) and path.isfile(cache_path):
+        info_json = open(cache_path)
+        load_list = load(info_json)
+        req_list = []
+        for i in load_list:
+            if i['submit'] == 1:
+                req_list.append(i)
+        return req_list
+    else:
+        print("[\x1b[0;33m-\x1b[0m] " + "没有找到Class.json,文件，将在搜索课程时自动保存")
+        return False
+
+
 if __name__ == '__main__':
-    init(autoreset=True)  # 某窗口系统的优质终端并不直接支持如下转义彩色字符，所以需要一些库来帮忙
-    classList = load_course()  # 读取本地待喵的课程
-    # 下面是CAS登录
+    init(autoreset=True)  # 某窗口系统的优质终端并不直接支持如下转义彩色字符，所以需要一些库来帮忙\
+
+    f = input("[\x1b[0;36m!\x1b[0m] " + "请选择你想要本地文件读取方式(1:Class.txt 2:Class.json)？")
+    f_list = ["1", "2"]
+    while f not in f_list:
+        print("[\x1b[0;36m!\x1b[0m] " + "输入未在范围内，请重新输入序号")
+        f = input("[\x1b[0;36m!\x1b[0m] " + "请选择你想要本地文件读取方式(1:Class.txt 2:Class.json)？")
+    match f:
+        case "1":
+            classList = load_course()  # 读取本地待喵的课程
+        case "2":
+            classList = load_course_json()
+
+            # 下面是CAS登录
     route, JSESSIONID = "", ""
     while route == "" or JSESSIONID == "":
         userName = input("请输入您的学号：")  # getpass在PyCharm里不能正常工作，请改为input或写死
@@ -156,17 +227,25 @@ if __name__ == '__main__':
         if route == "" or JSESSIONID == "":
             print("[\x1b[0;33m-\x1b[0m] " + "请重试...")
     head['cookie'] = f'route={route}; JSESSIONID={JSESSIONID};'
+
+    # 判断本科生还是研究生
+    g = input("[\x1b[0;36m!\x1b[0m] " + "请问你是本科生还是研究生(1:本科生 2:研究生)？")
+    g_list = ["1", "2"]
+    while g not in g_list:
+        print("[\x1b[0;36m!\x1b[0m] " + "输入未在范围内，请重新输入序号")
+        g = input("[\x1b[0;36m!\x1b[0m] " + "请问你是本科生还是研究生(1:本科生 2:研究生)？")
+
     # 下面先获取当前的学期
     print("[\x1b[0;36m!\x1b[0m] " + "从服务器获取当前喵课时间...")
-    semester_info = loads(   # 这里要加mxpylx才能获取到选课所在最新学期
+    semester_info = loads(  # 这里要加mxpylx才能获取到选课所在最新学期
         requests.post('https://tis.sustech.edu.cn/Xsxk/queryXkdqXnxq', data={"mxpylx": 1}, headers=head).text)
     print("[\x1b[0;32m+\x1b[0m] " + f"当前学期是{semester_info['p_xn']}学年第{semester_info['p_xq']}学期，为"
                                     f"{['', '秋季', '春季', '小'][int(semester_info['p_xq'])]}学期")
     # 下面获取课程信息
     print("[\x1b[0;36m!\x1b[0m] " + "从服务器下载课程信息，请稍等...")
-    postList = getinfo(semester_info)
+    postList = getinfo(semester_info, g, f)
     # 喵课主逻辑
-    while True:
+    while postList:
         print("[\x1b[0;32m+\x1b[0m] " + "按一下回车喵三次，多按同时喵多次")
         input()
         for c_id in postList:
