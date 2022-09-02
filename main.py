@@ -57,7 +57,7 @@ def getinfo(semester_data):
     """ 用于向tis请求当前学期的课程ID，得到的ID将用于选课的请求
     输入当前学期的日期信息，返回的json包括了课程名和内部的ID """
     course_list = []
-    course_types = {'bxxk': "通识必修选课", 'xxxk': "通识选修选课", "kzyxk": '培养方案内课程', "zynknjxk": '非培养方案内课程'}
+    course_types = {'bxxk': "通识必修选课", 'xxxk': "通识选修选课", "kzyxk": '培养方案内课程', "zynknjxk": '非培养方案内课程', "jhnxk": '计划内选课新生'}
     for course_type in course_types.keys():
         data = {
             "p_xn": semester_data['p_xn'],  # 当前学年
