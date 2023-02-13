@@ -8,6 +8,7 @@ main.py 南科大TIS喵课助手
 """
 
 import _thread
+from multiprocessing.pool import ThreadPool
 import requests
 from os import path
 from re import findall
@@ -19,7 +20,7 @@ head = {
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.0.0 Safari/537.36",
     "x-requested-with": "XMLHttpRequest"
 }
-
+Class_info_path = ('Class_info.txt')
 
 def cas_login(user_name, pwd):
     """ 用于和南科大CAS认证交互，拿到tis的有效cookie
@@ -58,6 +59,17 @@ def getinfo(semester_data):
     输入当前学期的日期信息，返回的json包括了课程名和内部的ID """
     course_list = []
     course_types = {'bxxk': "通识必修选课", 'xxxk': "通识选修选课", "kzyxk": '培养方案内课程', "zynknjxk": '非培养方案内课程', "jhnxk": '计划内选课新生'}
+    if(path.exists(Class_info_path)):
+        with open(Class_info_path, "r", encoding="utf8") as f:
+            for line in f.readlines():
+                course = list(line.strip().split())
+                print(course_types[course[1]] + " : " + course[2], end="")
+                print("   ID 为: " + course[0])
+                course_list.append(course)
+        f.close()
+        return course_list
+
+
     for course_type in course_types.keys():
         data = {
             "p_xn": semester_data['p_xn'],  # 当前学年
@@ -83,12 +95,17 @@ def getinfo(semester_data):
 
     print("[\x1b[0;32m+\x1b[0m] " + "课程信息读取完毕")
     print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
-    for course in course_list:
-        print(course_types[course[1]] + " : " + course[2], end="")
-        print("   ID 为: " + course[0])
+    with open(Class_info_path, "w", encoding="utf8") as f:
+        for course in course_list:
+            f.writelines("{} {} {}\n".format(course[0], course[1], course[2]))
+            print(course_types[course[1]] + " : " + course[2], end="")
+            print("   ID 为: " + course[0])
+    f.close()
     print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
     print("[\x1b[0;32m+\x1b[0m] " + "成功读入以上信息")
     print()
+    
+    
     return course_list
 
 
@@ -102,8 +119,8 @@ def submit(semester_data, course):
         "p_xn": semester_data['p_xn'],
         "p_xq": semester_data['p_xq'],
         "p_xnxq": semester_data['p_xnxq'],
-        "p_xkfsdm": course[1],  # 选课方式
-        "p_id": course[0],  # 课程id
+        "p_xkfsdm": course[1].strip(),  # 选课方式
+        "p_id": course[0].strip(),  # 课程id
         "p_sfxsgwckb": 1,  # 固定
     }
     req = requests.post('https://tis.sustech.edu.cn/Xsxk/addGouwuche', data=data, headers=head)
@@ -111,8 +128,10 @@ def submit(semester_data, course):
         print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
         print("[\x1b[0;34m█\x1b[0m]\t\t\t" + loads(req.text)['message'], flush=True)
         print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
+
     else:
         print("[\x1b[0;30m-\x1b[0m]\t\t\t" + loads(req.text)['message'], flush=True)
+
 
 
 def load_course():
@@ -164,6 +183,7 @@ if __name__ == '__main__':
                                     f"{['', '秋季', '春季', '小'][int(semester_info['p_xq'])]}学期")
     # 下面获取课程信息
     print("[\x1b[0;36m!\x1b[0m] " + "从服务器下载课程信息，请稍等...")
+
     postList = getinfo(semester_info)
     # 喵课主逻辑
     while True:
@@ -175,6 +195,8 @@ if __name__ == '__main__':
                     _thread.start_new_thread(submit, (semester_info, c_id))
             except:
                 print("线程异常")
+
+
 
 """
 # timing is everything!
