@@ -28,7 +28,7 @@ def cas_login(user_name, pwd):
     print("[\x1b[0;36m!\x1b[0m] " + "测试CAS链接...")
     try:  # Login 服务的CAS链接有时候会变
         login_url = "https://cas.sustech.edu.cn/cas/login?service=https%3A%2F%2Ftis.sustech.edu.cn%2Fcas"
-        req = requests.get(login_url, headers=head)
+        req = requests.get(login_url, headers=head, verify=False)
         assert (req.status_code == 200)
         print("[\x1b[0;32m+\x1b[0m] " + "成功连接到CAS...")
     except:
@@ -41,13 +41,13 @@ def cas_login(user_name, pwd):
         'execution': str(req.text).split('''name="execution" value="''')[1].split('"')[0],
         '_eventId': 'submit',
     }
-    req = requests.post(login_url, data=data, allow_redirects=False, headers=head)
+    req = requests.post(login_url, data=data, allow_redirects=False, headers=head, verify=False)
     if "Location" in req.headers.keys():
         print("[\x1b[0;32m+\x1b[0m] " + "登录成功")
     else:
         print("[\x1b[0;31mx\x1b[0m] " + "用户名或密码错误，请检查")
         return "", ""
-    req = requests.get(req.headers["Location"], allow_redirects=False, headers=head)
+    req = requests.get(req.headers["Location"], allow_redirects=False, headers=head, verify=False)
     route_ = findall('route=(.+?);', req.headers["Set-Cookie"])[0]
     jsessionid = findall('JSESSIONID=(.+?);', req.headers["Set-Cookie"])[0]
     return route_, jsessionid
@@ -69,7 +69,7 @@ def getinfo(semester_data):
             "pageNum": 1,
             "pageSize": 1000  # 每学期总共开课在1000左右，所以单组件可以包括学期的全部课程
         }
-        req = requests.post('https://tis.sustech.edu.cn/Xsxk/queryKxrw', data=data, headers=head)
+        req = requests.post('https://tis.sustech.edu.cn/Xsxk/queryKxrw', data=data, headers=head, verify=False)
         raw_class_data = loads(req.text)
         classData = {}
         if 'kxrwList' in raw_class_data.keys():
@@ -106,7 +106,7 @@ def submit(semester_data, course):
         "p_id": course[0],  # 课程id
         "p_sfxsgwckb": 1,  # 固定
     }
-    req = requests.post('https://tis.sustech.edu.cn/Xsxk/addGouwuche', data=data, headers=head)
+    req = requests.post('https://tis.sustech.edu.cn/Xsxk/addGouwuche', data=data, headers=head, verify=False)
     if "成功" in req.text:
         print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
         print("[\x1b[0;34m█\x1b[0m]\t\t\t" + loads(req.text)['message'], flush=True)
@@ -159,7 +159,7 @@ if __name__ == '__main__':
     # 下面先获取当前的学期
     print("[\x1b[0;36m!\x1b[0m] " + "从服务器获取当前喵课时间...")
     semester_info = loads(   # 这里要加mxpylx才能获取到选课所在最新学期
-        requests.post('https://tis.sustech.edu.cn/Xsxk/queryXkdqXnxq', data={"mxpylx": 1}, headers=head).text)
+        requests.post('https://tis.sustech.edu.cn/Xsxk/queryXkdqXnxq', data={"mxpylx": 1}, headers=head, verify=False).text)
     print("[\x1b[0;32m+\x1b[0m] " + f"当前学期是{semester_info['p_xn']}学年第{semester_info['p_xq']}学期，为"
                                     f"{['', '秋季', '春季', '小'][int(semester_info['p_xq'])]}学期")
     # 下面获取课程信息
