@@ -8,12 +8,25 @@ main.py 南科大TIS喵课助手
 """
 
 import _thread
-import requests
+from getpass import getpass
+from json import loads
 from os import path
 from re import findall
-from json import loads
+
+import requests
 from colorama import init
-from getpass import getpass
+
+import sys
+import warnings
+from urllib3.exceptions import InsecureRequestWarning
+
+
+def warn(message, category, filename, lineno, file=None, line=None):
+    if category is not InsecureRequestWarning:
+        sys.stderr.write(warnings.formatwarning(message, category, filename, lineno, line))
+
+
+warnings.showwarning = warn
 
 head = {
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.0.0 Safari/537.36",
@@ -28,6 +41,7 @@ def cas_login(user_name, pwd):
     print("[\x1b[0;36m!\x1b[0m] " + "测试CAS链接...")
     try:  # Login 服务的CAS链接有时候会变
         login_url = "https://cas.sustech.edu.cn/cas/login?service=https%3A%2F%2Ftis.sustech.edu.cn%2Fcas"
+        # login_url = "https://cas.sustech.edu.cn/cas/clientredirect?client_name=Wework&service=https%3A%2F%2Ftis.sustech.edu.cn%2Fcas"
         req = requests.get(login_url, headers=head, verify=False)
         assert (req.status_code == 200)
         print("[\x1b[0;32m+\x1b[0m] " + "成功连接到CAS...")
@@ -70,16 +84,17 @@ def getinfo(semester_data):
             "pageSize": 1000  # 每学期总共开课在1000左右，所以单组件可以包括学期的全部课程
         }
         req = requests.post('https://tis.sustech.edu.cn/Xsxk/queryKxrw', data=data, headers=head, verify=False)
+        print("[\x1b[0;36m*\x1b[0m] " + f"获取 {course_types[course_type]} 列表...")
         raw_class_data = loads(req.text)
-        classData = {}
+        class_data = {}
         if 'kxrwList' in raw_class_data.keys():
             for i in raw_class_data['kxrwList']['list']:
-                classData[i['rwmc']] = i['id']
+                class_data[i['rwmc']] = i['id']
             # 分析要喵课程的ID
             for name in classList:
                 name = name.strip()
-                if name in classData.keys():
-                    course_list.append([classData[name], course_type, name])
+                if name in class_data.keys():
+                    course_list.append([class_data[name], course_type, name])
 
     print("[\x1b[0;32m+\x1b[0m] " + "课程信息读取完毕")
     print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
