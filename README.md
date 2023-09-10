@@ -19,7 +19,7 @@
 ## 更新
 最后一次**检测可用**是2023-06-19，检测结果是 **可用**  
 - 如果您本地有python3.7+环境并希望手动运行/修改代码[访问源代码](https://github.com/GhostFrankWu/SUSTech_Tools/blob/master/main.py)  
-- 如果您本地没有python环境，您可以[使用windows打包版](https://github.com/GhostFrankWu/SUSTech_Tools/releases/tag/v3.1RC1)  
+- 如果您本地没有python环境，您可以[使用windows打包版](https://github.com/GhostFrankWu/SUSTech_Tools/releases/tag/v4.0)  
 
 ## 声明
 
@@ -29,6 +29,7 @@
 <!--
 | 最新日志 | 目前是否可用 | 时间 | 淘汰原因 
 -- | -- | -- | --  
+| 关闭SSL警告输出 | √ | 2023-9-11 | - | 
 | 取消SSL校验 | √ | 2023-6-19 | - | 
 | 更新小学期的选课逻辑 | x | 2022-6-20 | https://github.com/GhostFrankWu/SUSTech_Tools/issues/15 | 
 | 学年时间自动获取 | x | 2022-2-12 | 不支持小学期 |  
