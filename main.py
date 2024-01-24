@@ -87,7 +87,7 @@ def getinfo(semester_data):
         print("[\x1b[0;36m*\x1b[0m] " + f"获取 {course_types[course_type]} 列表...")
         raw_class_data = loads(req.text)
         class_data = {}
-        if 'kxrwList' in raw_class_data.keys():
+        if raw_class_data.get('kxrwList'):
             for i in raw_class_data['kxrwList']['list']:
                 class_data[i['rwmc']] = i['id']
             # 分析要喵课程的ID
