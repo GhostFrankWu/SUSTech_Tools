@@ -4,35 +4,28 @@
 main.py 南科大TIS喵课助手
 
 @CreateDate 2021-1-9
-@UpdateDate 2022-6-20
+@UpdateDate 2023-2-9
+modified by jrx: 修正了Max retries exceeded with url的错误
 """
 
 import _thread
-from getpass import getpass
-from json import loads
-from os import path
-from re import findall
+import time
 
 import requests
+
+from os import path
+from re import findall
+from json import loads
 from colorama import init
-
-import sys
-import warnings
-from urllib3.exceptions import InsecureRequestWarning
-
-
-def warn(message, category, filename, lineno, file=None, line=None):
-    if category is not InsecureRequestWarning:
-        sys.stderr.write(warnings.formatwarning(message, category, filename, lineno, line))
-
-
-warnings.showwarning = warn
+# from requests.packages.urllib3.exceptions import InsecureRequestWarning
+# requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 head = {
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.0.0 Safari/537.36",
     "x-requested-with": "XMLHttpRequest"
 }
-
 
 def cas_login(user_name, pwd):
     """ 用于和南科大CAS认证交互，拿到tis的有效cookie
@@ -41,8 +34,7 @@ def cas_login(user_name, pwd):
     print("[\x1b[0;36m!\x1b[0m] " + "测试CAS链接...")
     try:  # Login 服务的CAS链接有时候会变
         login_url = "https://cas.sustech.edu.cn/cas/login?service=https%3A%2F%2Ftis.sustech.edu.cn%2Fcas"
-        # login_url = "https://cas.sustech.edu.cn/cas/clientredirect?client_name=Wework&service=https%3A%2F%2Ftis.sustech.edu.cn%2Fcas"
-        req = requests.get(login_url, headers=head, verify=False)
+        req = requests.get(login_url, headers=head)
         assert (req.status_code == 200)
         print("[\x1b[0;32m+\x1b[0m] " + "成功连接到CAS...")
     except:
@@ -55,12 +47,13 @@ def cas_login(user_name, pwd):
         'execution': str(req.text).split('''name="execution" value="''')[1].split('"')[0],
         '_eventId': 'submit',
     }
-    req = requests.post(login_url, data=data, allow_redirects=False, headers=head, verify=False)
+    req = requests.post(login_url, data=data, allow_redirects=False, headers=head)
     if "Location" in req.headers.keys():
         print("[\x1b[0;32m+\x1b[0m] " + "登录成功")
     else:
         print("[\x1b[0;31mx\x1b[0m] " + "用户名或密码错误，请检查")
         return "", ""
+
     req = requests.get(req.headers["Location"], allow_redirects=False, headers=head, verify=False)
     route_ = findall('route=(.+?);', req.headers["Set-Cookie"])[0]
     jsessionid = findall('JSESSIONID=(.+?);', req.headers["Set-Cookie"])[0]
@@ -72,7 +65,10 @@ def getinfo(semester_data):
     输入当前学期的日期信息，返回的json包括了课程名和内部的ID """
     course_list = []
     course_types = {'bxxk': "通识必修选课", 'xxxk': "通识选修选课", "kzyxk": '培养方案内课程', "zynknjxk": '非培养方案内课程', "jhnxk": '计划内选课新生'}
+    # f = open("test"+".txt", "w+")
+    # raw_data_file = open("rawdata.txt", "w+")
     for course_type in course_types.keys():
+        # print(str(course_type) + "\n")
         data = {
             "p_xn": semester_data['p_xn'],  # 当前学年
             "p_xq": semester_data['p_xq'],  # 当前学期
@@ -84,18 +80,27 @@ def getinfo(semester_data):
             "pageSize": 1000  # 每学期总共开课在1000左右，所以单组件可以包括学期的全部课程
         }
         req = requests.post('https://tis.sustech.edu.cn/Xsxk/queryKxrw', data=data, headers=head, verify=False)
-        print("[\x1b[0;36m*\x1b[0m] " + f"获取 {course_types[course_type]} 列表...")
         raw_class_data = loads(req.text)
-        class_data = {}
-        if raw_class_data.get('kxrwList'):
+        for rawkey, rawvalue in raw_class_data.items():
+            if rawkey == 'kxrwList':
+                continue
+                # raw_data_file.write(str(rawkey) + "\n")
+                # raw_data_file.write(str(rawvalue) + "\n" + "\n")
+        classData = {}
+        if 'kxrwList' in raw_class_data.keys():
+            if raw_class_data['kxrwList'] is None:
+                continue
             for i in raw_class_data['kxrwList']['list']:
-                class_data[i['rwmc']] = i['id']
+                if i is not None:
+                    # f.write("hhhhh " + str(i) + "\n")
+                    classData[i['rwmc']] = i['id']
             # 分析要喵课程的ID
             for name in classList:
                 name = name.strip()
-                if name in class_data.keys():
-                    course_list.append([class_data[name], course_type, name])
-
+                if name in classData.keys():
+                    course_list.append([classData[name], course_type, name])
+    # raw_data_file.close()
+    # f.close()
     print("[\x1b[0;32m+\x1b[0m] " + "课程信息读取完毕")
     print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
     for course in course_list:
@@ -166,7 +171,7 @@ if __name__ == '__main__':
     route, JSESSIONID = "", ""
     while route == "" or JSESSIONID == "":
         userName = input("请输入您的学号：")  # getpass在PyCharm里不能正常工作，请改为input或写死
-        passWord = getpass("请输入CAS密码（密码不显示，输入完按回车即可）：")
+        passWord = input("请输入CAS密码（输入的密码将直接显示）：")
         route, JSESSIONID = cas_login(userName, passWord)
         if route == "" or JSESSIONID == "":
             print("[\x1b[0;33m-\x1b[0m] " + "请重试...")
@@ -180,14 +185,16 @@ if __name__ == '__main__':
     # 下面获取课程信息
     print("[\x1b[0;36m!\x1b[0m] " + "从服务器下载课程信息，请稍等...")
     postList = getinfo(semester_info)
+    print("[\x1b[0;32m+\x1b[0m] " + "开始喵课")
     # 喵课主逻辑
     while True:
-        print("[\x1b[0;32m+\x1b[0m] " + "按一下回车喵三次，多按同时喵多次")
-        input()
+        print("[\x1b[0;32m+\x1b[0m] " + "按一下回车对列表内所有课程喵一次，多按同时喵多次")
+        # input()
         for c_id in postList:
             try:
-                for _ in range(3):
+                for _ in range(1):
                     _thread.start_new_thread(submit, (semester_info, c_id))
+                    time.sleep(1)
             except:
                 print("线程异常")
 
