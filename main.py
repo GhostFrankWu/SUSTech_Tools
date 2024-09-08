@@ -9,9 +9,9 @@ main.py 南科大TIS喵课助手
 
 import _thread
 import time
+import os
 from getpass import getpass
 from json import loads, dumps
-from os import path
 from re import findall
 
 import requests
@@ -35,7 +35,7 @@ STAR = "[\x1b[0;32m*\x1b[0m] "
 ERROR = "[\x1b[0;31mx\x1b[0m] "
 INFO = "[\x1b[0;36m!\x1b[0m] "
 FAIL = "[\x1b[0;33m-\x1b[0m] "
-UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 head = {
     "user-agent": UA,
     "x-requested-with": "XMLHttpRequest"
@@ -46,6 +46,29 @@ COURSE_TYPE = {'bxxk': "通识必修选课", 'xxxk': "通识选修选课", "kzyx
 
 course_list = []  # 需要喵的课程队列
 # 由于Tis的新限制，逻辑改为同时只选一门课
+
+
+def load_course():
+    """ 用于加载本地要喵的课程
+    如果存在文件就读文件里的，不存在就手动录入
+    有些(我忘了是哪些了)情况会在文件头会有几个不可见字符，但是会被python读进来，所以第一行建议忽略留空"""
+    courses = []
+    if os.path.exists(CLASS_CACHE_PATH) and os.path.isfile(CLASS_CACHE_PATH):
+        print(INFO + "读取规划课表...")
+        with open(CLASS_CACHE_PATH, "r", encoding="utf8") as f:
+            courses = f.readlines()
+        print(SUCCESS + "规划课表读取完毕")
+    else:
+        print(FAIL + "没有找到规划课表，请手动输入课程信息，输入-1结束录入")
+        s = "===本文件是待喵课程的列表，一行输入一个课程名字==请勿删除本行==="
+        while s != "-1":
+            courses.append(s)
+            s = input()
+        s = input(INFO + "是否保存录入的信息（y/N）？")
+        if s in "yY":
+            with open(CLASS_CACHE_PATH, "w", encoding="utf8") as f:
+                f.writelines('\n'.join(courses))
+    return courses
 
 
 def cas_login(sid, pwd):
@@ -83,12 +106,12 @@ def cas_login(sid, pwd):
 def getinfo(semester_data):
     """ 用于向tis请求当前学期的课程ID，得到的ID将用于选课的请求
     输入当前学期的日期信息，返回的json包括了课程名和内部的ID """
-    if path.exists(COURSE_INFO_PATH) and path.isfile(COURSE_INFO_PATH):
+    if os.path.exists(COURSE_INFO_PATH) and os.path.isfile(COURSE_INFO_PATH):
         print(INFO + f"读取本地缓存的课程信息，如果需要更新请删除{COURSE_INFO_PATH}文件")
         with open(COURSE_INFO_PATH, "r", encoding="utf8") as f:
             cached_course_list = f.readlines()
         try:
-            cached_time = int(cached_course_list[0].strip())
+            cached_time = cached_course_list[0].strip()
             if cached_time == semester_data['p_xnxq']:
                 _course_info = loads(cached_course_list[1])
                 print(SUCCESS + f"课程信息读取完毕，共读取{str(len(_course_info))}门课程信息\n")
@@ -110,14 +133,14 @@ def getinfo(semester_data):
             "pageNum": 1,
             "pageSize": 1000  # 每学期总共开课在1000左右，所以单分类可以包括学期的全部课程
         }
-        req = requests.post('https://tis.sustech.edu.cn/Xsxk/queryKxrw', data=data, headers=head, verify=False)
         print("[\x1b[0;36m*\x1b[0m] " + f"获取 {COURSE_TYPE[c_type]} 列表...")
+        req = requests.post('https://tis.sustech.edu.cn/Xsxk/queryKxrw', data=data, headers=head, verify=False)
         raw_class_data = loads(req.text)
         if raw_class_data.get('kxrwList'):
             for i in raw_class_data['kxrwList']['list']:
                 _course_info[i['rwmc']] = (i['id'], c_type)
-    print(SUCCESS + f"课程信息读取完毕，共读取{str(len(_course_info))}门课程信息\n")
-    s = input(INFO + "是否保存录入的信息（y/N）？")
+    print(SUCCESS + f"课程信息读取完毕，共读取{str(len(_course_info))}门课程信息")
+    s = input(INFO + "是否保存读取的课程信息（y/N）？")
     if s in "yY":
         with open(COURSE_INFO_PATH, "w", encoding="utf8") as f:
             f.write(str(semester_data['p_xnxq']) + "\n")
@@ -129,8 +152,11 @@ def submit(semester_data, loop=3):
     """ 用于向tis发送喵课的请求
     这里假设主要耗时在网络IO上，本地处理时间几乎可以忽略
     （什么，购物车是怎么回事？那首先排除教务系统是个魔改的电商项目）"""
-    c_id, c_type, c_name = course_list[0]
     for _ in range(loop):
+        if not course_list:
+            print(SUCCESS + "⌯'ㅅ'⌯所有课程已喵完，再见😾")
+            exec("os._exit(0)")  # lint hack
+        c_id, c_type, c_name = course_list[0]
         data = {
             "p_pylx": 1,
             "p_xktjz": "rwtjzyx",  # 提交至，可选任务，rwtjzgwc提交至购物车，rwtjzyx提交至已选 gwctjzyx购物车提交至已选
@@ -142,37 +168,18 @@ def submit(semester_data, loop=3):
             "p_sfxsgwckb": 1,  # 固定
         }
         req = requests.post('https://tis.sustech.edu.cn/Xsxk/addGouwuche', data=data, headers=head, verify=False)
+        res = loads(req.text)['message']
         if "成功" in req.text:
             print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
-            print("[\x1b[0;34m█\x1b[0m]\t\t\t" + loads(req.text)['message'], flush=True)
+            print("[\x1b[0;34m█\x1b[0m]\t\t\t" + res, flush=True)
             print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
             course_list.pop(0)
         else:
-            print("[\x1b[0;30m-\x1b[0m]\t\t\t" + loads(req.text)['message'], flush=True)
+            print("[\x1b[0;30m-\x1b[0m]\t\t\t" + res, flush=True)
+        if any(map(lambda x: x in req.text, ["冲突", "已选", "已满"])):
+            print(f"[\x1b[0;31m!\x1b[0m] ({c_name})因为({res})跳过", flush=True)
+            course_list.pop(0)
         time.sleep(1)
-
-
-def load_course():
-    """ 用于加载本地要喵的课程
-    如果存在文件就读文件里的，不存在就手动录入
-    有些(我忘了是哪些了)情况会在文件头会有几个不可见字符，但是会被python读进来，所以第一行建议忽略留空"""
-    courses = []
-    if path.exists(CLASS_CACHE_PATH) and path.isfile(CLASS_CACHE_PATH):
-        print(INFO + "读取规划课表...")
-        with open(CLASS_CACHE_PATH, "r", encoding="utf8") as f:
-            courses = f.readlines()
-        print(SUCCESS + "规划课表读取完毕")
-    else:
-        print(FAIL + "没有找到规划课表，请手动输入课程信息，输入-1结束录入")
-        s = "===本文件是待喵课程的列表，一行输入一个课程名字==请勿删除本行==="
-        while s != "-1":
-            courses.append(s)
-            s = input()
-        s = input(INFO + "是否保存录入的信息（y/N）？")
-        if s in "yY":
-            with open(CLASS_CACHE_PATH, "w", encoding="utf8") as f:
-                f.writelines(courses)
-    return courses
 
 
 if __name__ == '__main__':
@@ -205,14 +212,14 @@ if __name__ == '__main__':
             course_list.append([course_id, course_type, name])
     print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
     for course in course_list:
-        print(f"{COURSE_TYPE[course[1]]} : {course[2]}    ID 为: {course[0]}")
+        print(f"{COURSE_TYPE[course[1]]} : {course[2]}\t\tID为: {course[0]}")
     print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
     print(SUCCESS + "成功读入以上信息\n")
     # 喵课主逻辑
     while True:
-        if input(STAR + "按一下回车喵三次，多按同时喵多次，任意字符跳过当前课程"):
-            course_list.pop(0)
         while course_list:
+            if input(STAR + "按一下回车喵三次，多按同时喵多次，任意字符跳过当前课程\n"):
+                course_list.pop(0)
             try:
                 _thread.start_new_thread(submit, (semester_info, 3))
             except Exception as e:
