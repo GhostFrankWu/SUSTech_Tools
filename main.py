@@ -9,7 +9,7 @@ main.py 南科大TIS喵课助手
 
 import _thread
 from getpass import getpass
-from json import loads
+from json import loads, dumps
 from os import path
 from re import findall
 
@@ -27,6 +27,7 @@ def warn(message, category, filename, lineno, _file=None, line=None):
 
 
 CLASS_CACHE_PATH = "class.txt"
+COURSE_INFO_PATH = "course.txt"
 warnings.showwarning = warn
 SUCCESS = "[\x1b[0;32m+\x1b[0m] "
 ERROR = "[\x1b[0;31mx\x1b[0m] "
@@ -78,6 +79,21 @@ def cas_login(sid, pwd):
 def getinfo(semester_data):
     """ 用于向tis请求当前学期的课程ID，得到的ID将用于选课的请求
     输入当前学期的日期信息，返回的json包括了课程名和内部的ID """
+
+    if path.exists(COURSE_INFO_PATH) and path.isfile(COURSE_INFO_PATH):
+        print(INFO + f"读取本地缓存的课程信息，如果需要更新请删除{COURSE_INFO_PATH}文件")
+        with open(COURSE_INFO_PATH, "r", encoding="utf8") as f:
+            cached_course_list = f.readlines()
+        try:
+            cached_time = int(cached_course_list[0].strip())
+            if cached_time == semester_data['p_xnxq']:
+                _course_info = loads(cached_course_list[1])
+                print(SUCCESS + f"课程信息读取完毕，共读取{str(len(_course_info))}门课程信息\n")
+                return _course_info
+            else:
+                print(INFO + "缓存文件已过期，重新获取课程信息")
+        except Exception as ex:
+            print(ERROR + f"缓存文件损坏，重新获取课程信息，{ex}")
     print(INFO + "从服务器下载课程信息，请稍等...")
     _course_info = {}
     for c_type in COURSE_TYPE.keys():
@@ -89,7 +105,7 @@ def getinfo(semester_data):
             "mxpylx": 1,
             "p_xkfsdm": c_type,
             "pageNum": 1,
-            "pageSize": 1000  # 每学期总共开课在1000左右，所以单组件可以包括学期的全部课程
+            "pageSize": 1000  # 每学期总共开课在1000左右，所以单分类可以包括学期的全部课程
         }
         req = requests.post('https://tis.sustech.edu.cn/Xsxk/queryKxrw', data=data, headers=head, verify=False)
         print("[\x1b[0;36m*\x1b[0m] " + f"获取 {COURSE_TYPE[c_type]} 列表...")
@@ -98,6 +114,11 @@ def getinfo(semester_data):
             for i in raw_class_data['kxrwList']['list']:
                 _course_info[i['rwmc']] = (i['id'], c_type)
     print(SUCCESS + f"课程信息读取完毕，共读取{str(len(_course_info))}门课程信息\n")
+    s = input(INFO + "是否保存录入的信息（y/N）？")
+    if s in "yY":
+        with open(COURSE_INFO_PATH, "w", encoding="utf8") as f:
+            f.write(str(semester_data['p_xnxq']) + "\n")
+            f.write(dumps(_course_info))
     return _course_info
 
 
@@ -140,19 +161,14 @@ def load_course():
         print(SUCCESS + "规划课表读取完毕")
     else:
         print("[\x1b[0;33m-\x1b[0m] " + "没有找到规划课表，请手动输入课程信息，输入-1结束录入")
-        while True:
-            s = input()
-            if s == "-1":
-                break
-            else:
-                courses.append(s)
+        s = "===本文件是待喵课程的列表，一行输入一个课程名字==请勿删除本行==="
+        while s != "-1":
+            courses.append(s)
+            s = input() 
         s = input(INFO + "是否保存录入的信息（y/N）？")
-        if s == "Y" or s == "y":
+        if s in "yY":
             with open(CLASS_CACHE_PATH, "w", encoding="utf8") as f:
-                f.write("===本文件是待喵课程的列表，一行输入一个课程名字==请勿删除本行===\n")
-                for c in courses:
-                    f.write(c + "\n")
-                f.close()
+                f.writelines(courses)
     return courses
 
 
@@ -196,7 +212,7 @@ if __name__ == '__main__':
         input()
         for course in course_list:
             try:
-                for _ in range(3): 
+                for _ in range(3):
                     _thread.start_new_thread(submit, (semester_info, course))
             except Exception as e:
                 print(f"[{e}] 线程异常")
