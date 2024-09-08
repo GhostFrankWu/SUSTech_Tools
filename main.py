@@ -8,6 +8,7 @@ main.py 南科大TIS喵课助手
 """
 
 import _thread
+import time
 from getpass import getpass
 from json import loads, dumps
 from os import path
@@ -30,9 +31,11 @@ CLASS_CACHE_PATH = "class.txt"
 COURSE_INFO_PATH = "course.txt"
 warnings.showwarning = warn
 SUCCESS = "[\x1b[0;32m+\x1b[0m] "
+STAR = "[\x1b[0;32m*\x1b[0m] "
 ERROR = "[\x1b[0;31mx\x1b[0m] "
 INFO = "[\x1b[0;36m!\x1b[0m] "
-UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.0.0 Safari/537.36"
+FAIL = "[\x1b[0;33m-\x1b[0m] "
+UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 head = {
     "user-agent": UA,
     "x-requested-with": "XMLHttpRequest"
@@ -41,7 +44,8 @@ head = {
 COURSE_TYPE = {'bxxk': "通识必修选课", 'xxxk': "通识选修选课", "kzyxk": '培养方案内课程',
                "zynknjxk": '非培养方案内课程', "jhnxk": '计划内选课新生'}
 
-course_selected = []  # 选课成功的课程
+course_list = []  # 需要喵的课程队列
+# 由于Tis的新限制，逻辑改为同时只选一门课
 
 
 def cas_login(sid, pwd):
@@ -79,7 +83,6 @@ def cas_login(sid, pwd):
 def getinfo(semester_data):
     """ 用于向tis请求当前学期的课程ID，得到的ID将用于选课的请求
     输入当前学期的日期信息，返回的json包括了课程名和内部的ID """
-
     if path.exists(COURSE_INFO_PATH) and path.isfile(COURSE_INFO_PATH):
         print(INFO + f"读取本地缓存的课程信息，如果需要更新请删除{COURSE_INFO_PATH}文件")
         with open(COURSE_INFO_PATH, "r", encoding="utf8") as f:
@@ -122,31 +125,31 @@ def getinfo(semester_data):
     return _course_info
 
 
-def submit(semester_data, _course):
+def submit(semester_data, loop=3):
     """ 用于向tis发送喵课的请求
-    本段函数会在多线程中调用，因为我不知道python神奇的GIL到底会在什么时候干预，所以尽量不用全局变量会共享的变量
+    这里假设主要耗时在网络IO上，本地处理时间几乎可以忽略
     （什么，购物车是怎么回事？那首先排除教务系统是个魔改的电商项目）"""
-    c_id, c_type, c_name = _course
-    if c_id in course_selected:
-        return print(INFO + "(c_name)已经选过了, 跳过")
-    data = {
-        "p_pylx": 1,
-        "p_xktjz": "rwtjzyx",  # 提交至，可选任务，rwtjzgwc提交至购物车，rwtjzyx提交至已选 gwctjzyx购物车提交至已选
-        "p_xn": semester_data['p_xn'],
-        "p_xq": semester_data['p_xq'],
-        "p_xnxq": semester_data['p_xnxq'],
-        "p_xkfsdm": c_type,  # 选课方式
-        "p_id": c_id,  # 课程id
-        "p_sfxsgwckb": 1,  # 固定
-    }
-    req = requests.post('https://tis.sustech.edu.cn/Xsxk/addGouwuche', data=data, headers=head, verify=False)
-    if "成功" in req.text:
-        print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
-        print("[\x1b[0;34m█\x1b[0m]\t\t\t" + loads(req.text)['message'], flush=True)
-        print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
-        course_selected.append(c_id)
-    else:
-        print("[\x1b[0;30m-\x1b[0m]\t\t\t" + loads(req.text)['message'], flush=True)
+    c_id, c_type, c_name = course_list[0]
+    for _ in range(loop):
+        data = {
+            "p_pylx": 1,
+            "p_xktjz": "rwtjzyx",  # 提交至，可选任务，rwtjzgwc提交至购物车，rwtjzyx提交至已选 gwctjzyx购物车提交至已选
+            "p_xn": semester_data['p_xn'],
+            "p_xq": semester_data['p_xq'],
+            "p_xnxq": semester_data['p_xnxq'],
+            "p_xkfsdm": c_type,  # 选课方式
+            "p_id": c_id,  # 课程id
+            "p_sfxsgwckb": 1,  # 固定
+        }
+        req = requests.post('https://tis.sustech.edu.cn/Xsxk/addGouwuche', data=data, headers=head, verify=False)
+        if "成功" in req.text:
+            print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
+            print("[\x1b[0;34m█\x1b[0m]\t\t\t" + loads(req.text)['message'], flush=True)
+            print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
+            course_list.pop(0)
+        else:
+            print("[\x1b[0;30m-\x1b[0m]\t\t\t" + loads(req.text)['message'], flush=True)
+        time.sleep(1)
 
 
 def load_course():
@@ -160,11 +163,11 @@ def load_course():
             courses = f.readlines()
         print(SUCCESS + "规划课表读取完毕")
     else:
-        print("[\x1b[0;33m-\x1b[0m] " + "没有找到规划课表，请手动输入课程信息，输入-1结束录入")
+        print(FAIL + "没有找到规划课表，请手动输入课程信息，输入-1结束录入")
         s = "===本文件是待喵课程的列表，一行输入一个课程名字==请勿删除本行==="
         while s != "-1":
             courses.append(s)
-            s = input() 
+            s = input()
         s = input(INFO + "是否保存录入的信息（y/N）？")
         if s in "yY":
             with open(CLASS_CACHE_PATH, "w", encoding="utf8") as f:
@@ -182,7 +185,7 @@ if __name__ == '__main__':
         pass_word = getpass("请输入CAS密码（密码不显示，输入完按回车即可）：")
         route, jsessionid = cas_login(user_name, pass_word)
         if route == "" or jsessionid == "":
-            print("[\x1b[0;33m-\x1b[0m] " + "请重试...")
+            print(FAIL + "请重试...")
     head['cookie'] = f'route={route}; JSESSIONID={jsessionid};'
     # 下面先获取当前的学期
     print(INFO + "从服务器获取当前喵课时间...")
@@ -194,7 +197,6 @@ if __name__ == '__main__':
     # 然后获取本学期全部课程信息
     print(INFO + "读取程信息...")
     course_info = getinfo(semester_info)
-    course_list = []
     # 分析要喵课程的ID
     for name in course_name_list:
         name = name.strip()
@@ -208,12 +210,11 @@ if __name__ == '__main__':
     print(SUCCESS + "成功读入以上信息\n")
     # 喵课主逻辑
     while True:
-        print(SUCCESS + "按一下回车喵三次，多按同时喵多次")
-        input()
-        for course in course_list:
+        if input(STAR + "按一下回车喵三次，多按同时喵多次，任意字符跳过当前课程"):
+            course_list.pop(0)
+        while course_list:
             try:
-                for _ in range(3):
-                    _thread.start_new_thread(submit, (semester_info, course))
+                _thread.start_new_thread(submit, (semester_info, 3))
             except Exception as e:
                 print(f"[{e}] 线程异常")
 
