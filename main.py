@@ -36,6 +36,8 @@ head = {
     "x-requested-with": "XMLHttpRequest"
 }
 
+course_selected = []  # 选课成功的课程
+
 
 def cas_login(sid, pwd):
     """ 用于和南科大CAS认证交互，拿到tis的有效cookie
@@ -113,6 +115,8 @@ def submit(semester_data, course):
     """ 用于向tis发送喵课的请求
     本段函数会在多线程中调用，因为我不知道python神奇的GIL到底会在什么时候干预，所以尽量不用全局变量会共享的变量
     （什么，购物车是怎么回事？那首先排除教务系统是个魔改的电商项目）"""
+    if course[0] in course_selected:
+        return print(INFO + course[0] + " 已经选过了, 跳过")
     data = {
         "p_pylx": 1,
         "p_xktjz": "rwtjzyx",  # 提交至，可选任务，rwtjzgwc提交至购物车，rwtjzyx提交至已选 gwctjzyx购物车提交至已选
@@ -128,6 +132,7 @@ def submit(semester_data, course):
         print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
         print("[\x1b[0;34m█\x1b[0m]\t\t\t" + loads(req.text)['message'], flush=True)
         print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
+        course_selected.append(course[0])
     else:
         print("[\x1b[0;30m-\x1b[0m]\t\t\t" + loads(req.text)['message'], flush=True)
 
