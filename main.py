@@ -4,7 +4,7 @@
 main.py 南科大TIS喵课助手
 
 @CreateDate 2021-1-9
-@UpdateDate 2024-9-8
+@UpdateDate 2024-9-9
 """
 
 import _thread
@@ -90,11 +90,19 @@ def cas_login(sid, pwd):
         'password': pwd,
         'execution': str(req.text).split('''name="execution" value="''')[1].split('"')[0],
         '_eventId': 'submit',
+        'geolocation': ''  # 新字段
     }
-    req = requests.post(login_url, data=data, allow_redirects=False, headers=head, verify=False)
+    while True:
+        req = requests.post(login_url, data=data, allow_redirects=False, headers=head, verify=False)
+        if req.status_code == 500:
+            print(ERROR + "CAS服务出错，重试中")
+        break
     if "Location" in req.headers.keys():
         print(SUCCESS + "登录成功")
     else:
+        for i in req.headers.keys():
+            print(f"{i} : {req.headers[i]}")
+        print(req.content)
         print(ERROR + "用户名或密码错误，请检查")
         return "", ""
     req = requests.get(req.headers["Location"], allow_redirects=False, headers=head, verify=False)
@@ -202,7 +210,7 @@ if __name__ == '__main__':
     print(SUCCESS + f"当前学期是{semester_info['p_xn']}学年第{semester_info['p_xq']}学期，为"
                     f"{['', '秋季', '春季', '小'][int(semester_info['p_xq'])]}学期")
     # 然后获取本学期全部课程信息
-    print(INFO + "读取程信息...")
+    print(INFO + "读取课程信息...")
     course_info = getinfo(semester_info)
     # 分析要喵课程的ID
     for name in course_name_list:
