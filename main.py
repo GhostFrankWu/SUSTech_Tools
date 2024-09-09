@@ -100,9 +100,6 @@ def cas_login(sid, pwd):
     if "Location" in req.headers.keys():
         print(SUCCESS + "登录成功")
     else:
-        for i in req.headers.keys():
-            print(f"{i} : {req.headers[i]}")
-        print(req.content)
         print(ERROR + "用户名或密码错误，请检查")
         return "", ""
     req = requests.get(req.headers["Location"], allow_redirects=False, headers=head, verify=False)
