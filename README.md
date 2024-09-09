@@ -4,7 +4,8 @@
 因此当前版本同时只选一门课（最重要的），选课队列优先级请参考使用说明  
 **该程序未对流量特征做任何的混淆，追求隐蔽性请自行修改** (UA，请求参数，其他流量等)
 
-如遇到学期服务器证书配置出错，兼容修改请参照issue手动修复
+如遇到学期服务器证书配置出错，兼容修改请参照issue手动修复  
+如遇CAS不明原因500，请提前多次尝试登录  
 
 ## 使用说明  
 - main.py为Python3编写的主程序，运行即可  
@@ -19,7 +20,7 @@
 ## 更新
 最后一次**检测可用**是2024-09-05，检测结果是 **可用**  
 - 如果您本地有Python3.6+环境并希望手动运行/修改代码[访问源代码](https://github.com/GhostFrankWu/SUSTech_Tools/blob/master/main.py)  
-- 如果您本地没有Python环境，您可以[使用windows打包版](https://github.com/GhostFrankWu/SUSTech_Tools/releases/tag/v5.0.0)  
+- 如果您本地没有Python环境，您可以[使用windows打包版](https://github.com/GhostFrankWu/SUSTech_Tools/releases/tag/v5.1.0)  
 
 ## 声明
 
