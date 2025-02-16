@@ -13,6 +13,7 @@ import os
 from getpass import getpass
 from json import loads, dumps
 from re import findall
+import datetime
 
 import requests
 from colorama import init
@@ -24,7 +25,8 @@ from urllib3.exceptions import InsecureRequestWarning
 
 def warn(message, category, filename, lineno, _file=None, line=None):
     if category is not InsecureRequestWarning:
-        sys.stderr.write(warnings.formatwarning(message, category, filename, lineno, line))
+        sys.stderr.write(warnings.formatwarning(
+            message, category, filename, lineno, line))
 
 
 CLASS_CACHE_PATH = "class.txt"
@@ -46,6 +48,43 @@ COURSE_TYPE = {'bxxk': "通识必修选课", 'xxxk': "通识选修选课", "kzyx
 
 course_list = []  # 需要喵的课程队列
 # 由于Tis的新限制，逻辑改为同时只选一门课
+
+
+
+UesrID = ""
+UserPasswd = ""
+
+
+
+
+def get_endTime(startTime,durationTime):
+    # 1. 将字符串时间转换为 datetime.time 对象
+    time_obj = datetime.datetime.strptime(startTime, "%H:%M").time()
+
+    # 2. 创建一个 datetime.datetime 对象，使用今天日期和转换后的时间
+    today = datetime.date.today()
+    start_datetime = datetime.datetime.combine(today, time_obj)
+
+    # 3. 创建一个 timedelta 对象，表示持续时间
+    duration_delta = datetime.timedelta(minutes=int(durationTime))
+
+    # 4. 将 timedelta 对象添加到 datetime 对象
+    end_datetime = start_datetime + duration_delta
+
+    # 5. 将结果 datetime 对象转换为字符串，格式化为 "HH:MM"
+    Time2End = end_datetime.strftime("%H:%M")
+    print("结束时间：",Time2End)
+    return Time2End
+
+# 设置自动运行时间
+Time2Run = "10:35" # 开始时间
+Duration = "10" # 单位是分钟
+Time2End = get_endTime(Time2Run,Duration)
+
+#超参数
+SumbitDelay = 1  # 抢课信息提交间隔时间，单位：秒
+MaxThread = 10   # 最大线程数 
+
 
 
 def load_course():
@@ -93,7 +132,8 @@ def cas_login(sid, pwd):
         'geolocation': ''  # 新字段
     }
     while True:
-        req = requests.post(login_url, data=data, allow_redirects=False, headers=head, verify=False)
+        req = requests.post(login_url, data=data,
+                            allow_redirects=False, headers=head, verify=False)
         if req.status_code == 500:
             print(ERROR + "CAS服务出错，重试中")
         break
@@ -102,7 +142,8 @@ def cas_login(sid, pwd):
     else:
         print(ERROR + "用户名或密码错误，请检查")
         return "", ""
-    req = requests.get(req.headers["Location"], allow_redirects=False, headers=head, verify=False)
+    req = requests.get(
+        req.headers["Location"], allow_redirects=False, headers=head, verify=False)
     _route = findall('route=(.+?);', req.headers["Set-Cookie"])[0]
     _jsessionid = findall('JSESSIONID=(.+?);', req.headers["Set-Cookie"])[0]
     return _route, _jsessionid
@@ -139,7 +180,8 @@ def getinfo(semester_data):
             "pageSize": 1000  # 每学期总共开课在1000左右，所以单分类可以包括学期的全部课程
         }
         print("[\x1b[0;36m*\x1b[0m] " + f"获取 {COURSE_TYPE[c_type]} 列表...")
-        req = requests.post('https://tis.sustech.edu.cn/Xsxk/queryKxrw', data=data, headers=head, verify=False)
+        req = requests.post('https://tis.sustech.edu.cn/Xsxk/queryKxrw',
+                            data=data, headers=head, verify=False)
         raw_class_data = loads(req.text)
         if raw_class_data.get('kxrwList'):
             for i in raw_class_data['kxrwList']['list']:
@@ -172,7 +214,8 @@ def submit(semester_data, loop=3):
             "p_id": c_id,  # 课程id
             "p_sfxsgwckb": 1,  # 固定
         }
-        req = requests.post('https://tis.sustech.edu.cn/Xsxk/addGouwuche', data=data, headers=head, verify=False)
+        req = requests.post('https://tis.sustech.edu.cn/Xsxk/addGouwuche',
+                            data=data, headers=head, verify=False)
         res = loads(req.text)['message']
         if "成功" in req.text:
             print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
@@ -184,7 +227,7 @@ def submit(semester_data, loop=3):
         if any(map(lambda x: x in req.text, ["冲突", "已选", "已满"])):
             print(f"[\x1b[0;31m!\x1b[0m] ({c_name})因为({res})跳过", flush=True)
             course_list.pop(0)
-        time.sleep(1)
+        time.sleep(SumbitDelay)
 
 
 if __name__ == '__main__':
@@ -193,8 +236,12 @@ if __name__ == '__main__':
     # 下面是CAS登录
     route, jsessionid = "", ""
     while route == "" or jsessionid == "":
-        user_name = input("请输入您的学号：")  # getpass在PyCharm里不能正常工作，请改为input或写死
-        pass_word = getpass("请输入CAS密码（密码不显示，输入完按回车即可）：")
+        if UesrID != "":
+            user_name = UesrID
+            pass_word = UserPasswd
+        else:
+            user_name = input("请输入您的学号：")  # getpass在PyCharm里不能正常工作，请改为input或写死
+            pass_word = getpass("请输入CAS密码（密码不显示，输入完按回车即可）：")
         route, jsessionid = cas_login(user_name, pass_word)
         if route == "" or jsessionid == "":
             print(FAIL + "请重试...")
@@ -203,9 +250,10 @@ if __name__ == '__main__':
     print(INFO + "从服务器获取当前喵课时间...")
     semester_info = loads(
         requests.post('https://tis.sustech.edu.cn/Xsxk/queryXkdqXnxq',
-                      data={"mxpylx": 1}, headers=head, verify=False).text)  # 这里要加mxpylx才能获取到选课所在最新学期
+                      # 这里要加mxpylx才能获取到选课所在最新学期
+                      data={"mxpylx": 1}, headers=head, verify=False).text)
     print(SUCCESS + f"当前学期是{semester_info['p_xn']}学年第{semester_info['p_xq']}学期，为"
-                    f"{['', '秋季', '春季', '小'][int(semester_info['p_xq'])]}学期")
+          f"{['', '秋季', '春季', '小'][int(semester_info['p_xq'])]}学期")
     # 然后获取本学期全部课程信息
     print(INFO + "读取课程信息...")
     course_info = getinfo(semester_info)
@@ -221,18 +269,27 @@ if __name__ == '__main__':
     print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
     print(SUCCESS + "成功读入以上信息\n")
     # 喵课主逻辑
+    CurrentThreadNum = 0
     while True:
+        if not course_list:
+            print(SUCCESS + "⌯'ㅅ'⌯所有课程已喵完，再见😾")
+            exec("os._exit(0)")  # lint hack
         while course_list:
-            if input(STAR + "按一下回车喵三次，多按同时喵多次，任意字符跳过当前课程\n"):
-                course_list.pop(0)
-            try:
-                _thread.start_new_thread(submit, (semester_info, 3))
-            except Exception as e:
-                print(f"[{e}] 线程异常")
+            current_time = datetime.datetime.now().strftime("%H:%M")
+            if current_time > Time2Run and current_time < Time2End:
+                if CurrentThreadNum >=  MaxThread:
+                    exec("os._exit(0)")  # lint hack
+                try:
+                    _thread.start_new_thread(submit, (semester_info, 3))
+                    CurrentThreadNum += 1
+                except Exception as e:
+                    print(f"[{e}] 线程异常")
+                time.sleep(1)
 
 """
 # timing is everything!
     import datetime,time
+import datetime
     start = datetime.datetime.strptime(str(datetime.datetime.now().date()) + '12:55', '%Y-%m-%d%H:%M')
     end = datetime.datetime.strptime(str(datetime.datetime.now().date()) + '13:05', '%Y-%m-%d%H:%M')
     while True:
