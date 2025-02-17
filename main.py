@@ -26,9 +26,9 @@ def warn(message, category, filename, lineno, _file=None, line=None):
     if category is not InsecureRequestWarning:
         sys.stderr.write(warnings.formatwarning(message, category, filename, lineno, line))
 
-
 CLASS_CACHE_PATH = "class.txt"
 COURSE_INFO_PATH = "course.txt"
+USER_INFO_PATH = "user.txt"
 warnings.showwarning = warn
 SUCCESS = "[\x1b[0;32m+\x1b[0m] "
 STAR = "[\x1b[0;32m*\x1b[0m] "
@@ -42,11 +42,10 @@ head = {
 }
 
 COURSE_TYPE = {'bxxk': "通识必修选课", 'xxxk': "通识选修选课", "kzyxk": '培养方案内课程',
-               "zynknjxk": '非培养方案内课程', "jhnxk": '计划内选课新生'}
+               "zynknjxk": '非培养方案内课程', "cxxk": '重修选课', "jhnxk": '计划内选课新生'}
 
 course_list = []  # 需要喵的课程队列
 # 由于Tis的新限制，逻辑改为同时只选一门课
-
 
 def load_course():
     """ 用于加载本地要喵的课程
@@ -192,12 +191,29 @@ if __name__ == '__main__':
     course_name_list = load_course()  # 读取本地待喵的课程
     # 下面是CAS登录
     route, jsessionid = "", ""
+    if os.path.exists(USER_INFO_PATH): # 如果有保存的用户信息，尝试从文件自动登录
+        try:
+            with open(USER_INFO_PATH, "r", encoding="utf8") as f:
+                lines = f.read().splitlines()
+                if len(lines) >= 2:
+                    user_name, pass_word = lines[0], lines[1]
+                    route, jsessionid = cas_login(user_name, pass_word)
+        except Exception as e:
+            print(FAIL + f"自动登录出现异常: {e}")
+        if route == "" or jsessionid == "":
+            print(FAIL + "自动登录失败，需要手动登录")
+
     while route == "" or jsessionid == "":
         user_name = input("请输入您的学号：")  # getpass在PyCharm里不能正常工作，请改为input或写死
         pass_word = getpass("请输入CAS密码（密码不显示，输入完按回车即可）：")
         route, jsessionid = cas_login(user_name, pass_word)
         if route == "" or jsessionid == "":
             print(FAIL + "请重试...")
+        else: # 登录成功后询问保存
+            s = input(INFO + "是否保存用户信息（y/N）？")
+            if s.lower() in {"y", "yes"}:
+                with open(USER_INFO_PATH, "w", encoding="utf8") as f:
+                    f.write(f"{user_name}\n{pass_word}")
     head['cookie'] = f'route={route}; JSESSIONID={jsessionid};'
     # 下面先获取当前的学期
     print(INFO + "从服务器获取当前喵课时间...")
@@ -229,20 +245,3 @@ if __name__ == '__main__':
                 _thread.start_new_thread(submit, (semester_info, 3))
             except Exception as e:
                 print(f"[{e}] 线程异常")
-
-"""
-# timing is everything!
-    import datetime,time
-    start = datetime.datetime.strptime(str(datetime.datetime.now().date()) + '12:55', '%Y-%m-%d%H:%M')
-    end = datetime.datetime.strptime(str(datetime.datetime.now().date()) + '13:05', '%Y-%m-%d%H:%M')
-    while True:
-        n_time = datetime.datetime.now()
-        if start < n_time < end:
-            for c_id in postList:
-                try:
-                    submit(semester_info, c_id)
-                except:
-                    pass
-            time.sleep(0xdeadbeef)
-        time.sleep(0xc0febabe)
-"""
