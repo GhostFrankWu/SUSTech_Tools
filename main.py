@@ -26,8 +26,6 @@ def warn(message, category, filename, lineno, _file=None, line=None):
     if category is not InsecureRequestWarning:
         sys.stderr.write(warnings.formatwarning(message, category, filename, lineno, line))
 
-import subprocess
-
 CLASS_CACHE_PATH = "class.txt"
 COURSE_INFO_PATH = "course.txt"
 USER_INFO_PATH = "user.txt"
@@ -198,11 +196,10 @@ if __name__ == '__main__':
             with open(USER_INFO_PATH, "r", encoding="utf8") as f:
                 lines = f.read().splitlines()
                 if len(lines) >= 2:
-                    user_name = lines[0]
-                    pass_word = lines[1]
+                    user_name, pass_word = lines[0], lines[1]
                     route, jsessionid = cas_login(user_name, pass_word)
         except Exception as e:
-            print(FAIL + f"自动登录失败: {e}")
+            print(FAIL + f"自动登录出现异常: {e}")
         if route == "" or jsessionid == "":
             print(FAIL + "自动登录失败，需要手动登录")
 
@@ -248,20 +245,3 @@ if __name__ == '__main__':
                 _thread.start_new_thread(submit, (semester_info, 3))
             except Exception as e:
                 print(f"[{e}] 线程异常")
-
-"""
-# timing is everything!
-    import datetime,time
-    start = datetime.datetime.strptime(str(datetime.datetime.now().date()) + '12:55', '%Y-%m-%d%H:%M')
-    end = datetime.datetime.strptime(str(datetime.datetime.now().date()) + '13:05', '%Y-%m-%d%H:%M')
-    while True:
-        n_time = datetime.datetime.now()
-        if start < n_time < end:
-            for c_id in postList:
-                try:
-                    submit(semester_info, c_id)
-                except:
-                    pass
-            time.sleep(0xdeadbeef)
-        time.sleep(0xc0febabe)
-"""
