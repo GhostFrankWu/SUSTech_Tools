@@ -44,6 +44,8 @@ head = {
 COURSE_TYPE = {'bxxk': "通识必修选课", 'xxxk': "通识选修选课", "kzyxk": '培养方案内课程',
                "zynknjxk": '非培养方案内课程', "cxxk": '重修选课', "jhnxk": '计划内选课新生'}
 
+TIMEOUT = 1.2 # 线程喵课间隔
+
 course_list = []  # 需要喵的课程队列
 # 由于Tis的新限制，逻辑改为同时只选一门课
 
@@ -183,7 +185,47 @@ def submit(semester_data, loop=3):
         if any(map(lambda x: x in req.text, ["冲突", "已选", "已满"])):
             print(f"[\x1b[0;31m!\x1b[0m] ({c_name})因为({res})跳过", flush=True)
             course_list.pop(0)
-        time.sleep(1)
+        time.sleep(TIMEOUT)
+        
+        
+def submit_sequential(semester_data):
+    """ 按照输入课程顺序向tis发送喵课请求 """
+    if not course_list:
+        print(SUCCESS + "⌯'ㅅ'⌯所有课程已喵完，再见😾")
+        exec("os._exit(0)")  # lint hack
+    course_list_copy = course_list.copy()
+    for course in course_list_copy:
+        c_id, c_type, c_name = course
+        if course in course_list:
+            data = {
+                "p_pylx": 1,
+                "p_xktjz": "rwtjzyx",  # 提交至，可选任务，rwtjzgwc提交至购物车，rwtjzyx提交至已选 gwctjzyx购物车提交至已选
+                "p_xn": semester_data['p_xn'],
+                "p_xq": semester_data['p_xq'],
+                "p_xnxq": semester_data['p_xnxq'],
+                "p_xkfsdm": c_type,  # 选课方式
+                "p_id": c_id,  # 课程id
+                "p_sfxsgwckb": 1,  # 固定
+            }
+            req = requests.post('https://tis.sustech.edu.cn/Xsxk/addGouwuche', data=data, headers=head, verify=False)
+            res = loads(req.text)['message']
+            if "成功" in req.text:
+                print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
+                print("[\x1b[0;34m█\x1b[0m]\t\t\t" + res, flush=True)
+                print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
+                course_list.remove(course)
+            else:
+                print("[\x1b[0;30m-\x1b[0m]\t\t\t" + res, flush=True)
+            if any(map(lambda x: x in req.text, ["冲突", "已选", "已满"])):
+                print(f"[\x1b[0;31m!\x1b[0m] ({c_name})因为({res})跳过", flush=True)
+                course_list.remove(course)
+            time.sleep(TIMEOUT)
+
+
+def exit():
+    """ 退出函数 """
+    print(INFO + "退出喵课助手，再见😾")
+    exec("os._exit(0)")  # lint hack
 
 
 if __name__ == '__main__':
@@ -237,11 +279,37 @@ if __name__ == '__main__':
     print("[\x1b[0;34m{}\x1b[0m]".format("=" * 25))
     print(SUCCESS + "成功读入以上信息\n")
     # 喵课主逻辑
+
+    if not course_list:
+        print("没有读取到要喵的课程，请检查课程名称是否正确")
+        exit()
+    
+    mode = input("请输入喵课模式：[1] -- 优先按照输入课程顺序喵课，2 -- 所有课程循环喵课，0 -- 退出\n") or "1"
+    
     while True:
-        while course_list:
-            if input(STAR + "按一下回车喵三次，多按同时喵多次，任意字符跳过当前课程\n"):
-                course_list.pop(0)
-            try:
-                _thread.start_new_thread(submit, (semester_info, 3))
-            except Exception as e:
-                print(f"[{e}] 线程异常")
+
+        if mode == "1":
+            print(INFO + "当前模式: 优先按照输入课程顺序喵课")
+            while course_list:
+                if input(STAR + "按一下回车喵三次，多按同时喵多次，任意字符跳过当前课程\n"):
+                    course_list.pop(0)
+                    if not course_list:
+                        print(SUCCESS + "⌯'ㅅ'⌯所有课程已喵完，再见😾")
+                        exec("os._exit(0)")
+                try:
+                    _thread.start_new_thread(submit, (semester_info, 3))
+                except Exception as e:
+                    print(f"[{e}] 线程异常")
+        
+        if mode == "2":
+            print(INFO + "当前模式: 所有课程循环喵课")
+            while course_list:
+                if input(STAR + "按一下回车对所有课程喵一次，多按同时喵多次，任意字符退出\n"):
+                    exit()
+                try:
+                    _thread.start_new_thread(submit_sequential, (semester_info,))
+                except Exception as e:
+                    print(f"[{e}] 线程异常")
+        
+        if mode == "0":
+            exit()
