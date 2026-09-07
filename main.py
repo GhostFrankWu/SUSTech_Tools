@@ -7,12 +7,11 @@ main.py 南科大TIS喵课助手
 @UpdateDate 2024-9-9
 """
 
-import _thread
 import time
 import os
 from getpass import getpass
 from json import loads, dumps
-from re import findall
+from re import search
 
 import requests
 from colorama import init
@@ -44,7 +43,8 @@ head = {
 COURSE_TYPE = {'bxxk': "通识必修选课", 'xxxk': "通识选修选课", "kzyxk": '培养方案内课程',
                "zynknjxk": '非培养方案内课程', "cxxk": '重修选课', "jhnxk": '计划内选课新生'}
 
-TIMEOUT = 1.2 # 线程喵课间隔
+TIMEOUT = 1.0 # 请求间隔，保持每秒最多一次提交
+REQUEST_TIMEOUT = 15
 
 course_list = []  # 需要喵的课程队列
 # 由于Tis的新限制，逻辑改为同时只选一门课
@@ -74,17 +74,17 @@ def load_course():
 
 def cas_login(sid, pwd):
     """ 用于和南科大CAS认证交互，拿到tis的有效cookie
-    输入用于CAS登录的用户名密码，输出tis需要的全部cookie内容(返回头Set-Cookie段的route和jsessionid)
-    我的requests的session不吃CAS重定向给到的cookie，不知道是代码哪里的问题，所以就手动拿了 """
+    输入用于CAS登录的用户名密码，输出TIS需要的Cookie请求头 """
     print(INFO + "测试CAS链接...")
+    session = requests.Session()
     try:  # Login 服务的CAS链接有时候会变
         login_url = "https://cas.sustech.edu.cn/cas/login?service=https%3A%2F%2Ftis.sustech.edu.cn%2Fcas"
-        req = requests.get(login_url, headers=head, verify=False)
+        req = session.get(login_url, headers=head, verify=False)
         assert (req.status_code == 200)
         print(SUCCESS + "成功连接到CAS...")
     except Exception as ex:
         print(ERROR + f"不能访问CAS, 请检查您的网络连接状态 ({ex})")
-        return "", ""
+        return ""
     print(INFO + "登录中...")
     data = {  # execution大概是CAS中前端session id之类的东西
         'username': sid,
@@ -94,7 +94,7 @@ def cas_login(sid, pwd):
         'geolocation': ''  # 新字段
     }
     while True:
-        req = requests.post(login_url, data=data, allow_redirects=False, headers=head, verify=False)
+        req = session.post(login_url, data=data, allow_redirects=False, headers=head, verify=False)
         if req.status_code == 500:
             print(ERROR + "CAS服务出错，重试中")
         break
@@ -102,11 +102,28 @@ def cas_login(sid, pwd):
         print(SUCCESS + "登录成功")
     else:
         print(ERROR + "用户名或密码错误，请检查")
-        return "", ""
-    req = requests.get(req.headers["Location"], allow_redirects=False, headers=head, verify=False)
-    _route = findall('route=(.+?);', req.headers["Set-Cookie"])[0]
-    _jsessionid = findall('JSESSIONID=(.+?);', req.headers["Set-Cookie"])[0]
-    return _route, _jsessionid
+        return ""
+    req = session.get(req.headers["Location"], allow_redirects=False, headers=head, verify=False)
+    # requests parses separate Set-Cookie headers into the response cookie jar.
+    # Fall back to the raw header for older CAS/TIS response formats.
+    def get_cookie(name):
+        for cookie_jar in (req.cookies, session.cookies):
+            for cookie in cookie_jar:
+                if cookie.name == name and cookie.value:
+                    return cookie.value
+        cookie_header = req.headers.get("Set-Cookie", "")
+        match = search(rf"(?:^|[,;]\s*){name}=([^;,\s]+)", cookie_header, flags=0)
+        return match.group(1) if match else ""
+
+    cookie_header = "; ".join(
+        f"{name}={value}"
+        for name in ("route", "JSESSIONID", "SESSION")
+        if (value := get_cookie(name))
+    )
+    if not cookie_header:
+        print(ERROR + "登录成功，但CAS未返回TIS所需的登录Cookie，请稍后重试")
+        return ""
+    return cookie_header
 
 
 def getinfo(semester_data):
@@ -154,109 +171,80 @@ def getinfo(semester_data):
     return _course_info
 
 
-def submit(semester_data, loop=3):
-    """ 用于向tis发送喵课的请求
-    这里假设主要耗时在网络IO上，本地处理时间几乎可以忽略
-    （什么，购物车是怎么回事？那首先排除教务系统是个魔改的电商项目）"""
-    for _ in range(loop):
-        if not course_list:
-            print(SUCCESS + "⌯'ㅅ'⌯所有课程已喵完，再见😾")
-            exec("os._exit(0)")  # lint hack
+def submit_sequential(semester_data):
+    """持续按队列顺序选课，直到全部课程成功、已选或已满。"""
+    while course_list:
         c_id, c_type, c_name = course_list[0]
         data = {
             "p_pylx": 1,
-            "p_xktjz": "rwtjzyx",  # 提交至，可选任务，rwtjzgwc提交至购物车，rwtjzyx提交至已选 gwctjzyx购物车提交至已选
+            "p_xktjz": "rwtjzyx",
             "p_xn": semester_data['p_xn'],
             "p_xq": semester_data['p_xq'],
             "p_xnxq": semester_data['p_xnxq'],
-            "p_xkfsdm": c_type,  # 选课方式
-            "p_id": c_id,  # 课程id
-            "p_sfxsgwckb": 1,  # 固定
+            "p_xkfsdm": c_type,
+            "p_id": c_id,
+            "p_sfxsgwckb": 1,
         }
-        req = requests.post('https://tis.sustech.edu.cn/Xsxk/addGouwuche', data=data, headers=head, verify=False)
-        res = loads(req.text)['message']
-        if "成功" in req.text:
-            print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
-            print("[\x1b[0;34m█\x1b[0m]\t\t\t" + res, flush=True)
-            print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
-            course_list.pop(0)
+        try:
+            req = requests.post(
+                'https://tis.sustech.edu.cn/Xsxk/addGouwuche',
+                data=data,
+                headers=head,
+                verify=False,
+                timeout=REQUEST_TIMEOUT,
+            )
+            res = loads(req.text).get('message', req.text)
+        except Exception as ex:
+            print(ERROR + f"({c_name})请求异常，将继续重试: {ex}", flush=True)
         else:
-            print("[\x1b[0;30m-\x1b[0m]\t\t\t" + res, flush=True)
-        if any(map(lambda x: x in req.text, ["冲突", "已选", "已满"])):
-            print(f"[\x1b[0;31m!\x1b[0m] ({c_name})因为({res})跳过", flush=True)
-            course_list.pop(0)
-        time.sleep(TIMEOUT)
-        
-        
-def submit_sequential(semester_data):
-    """ 按照输入课程顺序向tis发送喵课请求 """
-    if not course_list:
-        print(SUCCESS + "⌯'ㅅ'⌯所有课程已喵完，再见😾")
-        exec("os._exit(0)")  # lint hack
-    course_list_copy = course_list.copy()
-    for course in course_list_copy:
-        c_id, c_type, c_name = course
-        if course in course_list:
-            data = {
-                "p_pylx": 1,
-                "p_xktjz": "rwtjzyx",  # 提交至，可选任务，rwtjzgwc提交至购物车，rwtjzyx提交至已选 gwctjzyx购物车提交至已选
-                "p_xn": semester_data['p_xn'],
-                "p_xq": semester_data['p_xq'],
-                "p_xnxq": semester_data['p_xnxq'],
-                "p_xkfsdm": c_type,  # 选课方式
-                "p_id": c_id,  # 课程id
-                "p_sfxsgwckb": 1,  # 固定
-            }
-            req = requests.post('https://tis.sustech.edu.cn/Xsxk/addGouwuche', data=data, headers=head, verify=False)
-            res = loads(req.text)['message']
-            if "成功" in req.text:
-                print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
-                print("[\x1b[0;34m█\x1b[0m]\t\t\t" + res, flush=True)
-                print("[\x1b[0;34m{}\x1b[0m]".format("=" * 50), flush=True)
-                course_list.remove(course)
+            if "成功" in res or "已选" in res:
+                print(SUCCESS + f"({c_name}) {res}", flush=True)
+                course_list.pop(0)
+            elif "已满" in res:
+                print(FAIL + f"({c_name}) {res}，切换下一门课", flush=True)
+                course_list.pop(0)
             else:
-                print("[\x1b[0;30m-\x1b[0m]\t\t\t" + res, flush=True)
-            if any(map(lambda x: x in req.text, ["冲突", "已选", "已满"])):
-                print(f"[\x1b[0;31m!\x1b[0m] ({c_name})因为({res})跳过", flush=True)
-                course_list.remove(course)
-            time.sleep(TIMEOUT)
+                print(FAIL + f"({c_name}) {res}，继续重试", flush=True)
+        time.sleep(TIMEOUT)
+
+    print(SUCCESS + "所有课程均已成功、已选或已满，程序结束")
 
 
 def exit():
     """ 退出函数 """
     print(INFO + "退出喵课助手，再见😾")
-    exec("os._exit(0)")  # lint hack
+    raise SystemExit
 
 
 if __name__ == '__main__':
     init(autoreset=True)  # 某窗口系统的优质终端并不直接支持如下转义彩色字符，所以需要一些库来帮忙
     course_name_list = load_course()  # 读取本地待喵的课程
     # 下面是CAS登录
-    route, jsessionid = "", ""
+    cookie = ""
     if os.path.exists(USER_INFO_PATH): # 如果有保存的用户信息，尝试从文件自动登录
         try:
             with open(USER_INFO_PATH, "r", encoding="utf8") as f:
                 lines = f.read().splitlines()
                 if len(lines) >= 2:
                     user_name, pass_word = lines[0], lines[1]
-                    route, jsessionid = cas_login(user_name, pass_word)
+                    cookie = cas_login(user_name, pass_word)
         except Exception as e:
             print(FAIL + f"自动登录出现异常: {e}")
-        if route == "" or jsessionid == "":
+        if not cookie:
             print(FAIL + "自动登录失败，需要手动登录")
 
-    while route == "" or jsessionid == "":
+    while not cookie:
         user_name = input("请输入您的学号：")  # getpass在PyCharm里不能正常工作，请改为input或写死
         pass_word = getpass("请输入CAS密码（密码不显示，输入完按回车即可）：")
-        route, jsessionid = cas_login(user_name, pass_word)
-        if route == "" or jsessionid == "":
+        cookie = cas_login(user_name, pass_word)
+        if not cookie:
             print(FAIL + "请重试...")
         else: # 登录成功后询问保存
             s = input(INFO + "是否保存用户信息（y/N）？")
             if s.lower() in {"y", "yes"}:
                 with open(USER_INFO_PATH, "w", encoding="utf8") as f:
                     f.write(f"{user_name}\n{pass_word}")
-    head['cookie'] = f'route={route}; JSESSIONID={jsessionid};'
+    head['cookie'] = cookie
     # 下面先获取当前的学期
     print(INFO + "从服务器获取当前喵课时间...")
     semester_info = loads(
@@ -283,33 +271,9 @@ if __name__ == '__main__':
     if not course_list:
         print("没有读取到要喵的课程，请检查课程名称是否正确")
         exit()
-    
-    mode = input("请输入喵课模式：[1] -- 优先按照输入课程顺序喵课，2 -- 所有课程循环喵课，0 -- 退出\n") or "1"
-    
-    while True:
 
-        if mode == "1":
-            print(INFO + "当前模式: 优先按照输入课程顺序喵课")
-            while course_list:
-                if input(STAR + "按一下回车喵三次，多按同时喵多次，任意字符跳过当前课程\n"):
-                    course_list.pop(0)
-                    if not course_list:
-                        print(SUCCESS + "⌯'ㅅ'⌯所有课程已喵完，再见😾")
-                        exec("os._exit(0)")
-                try:
-                    _thread.start_new_thread(submit, (semester_info, 3))
-                except Exception as e:
-                    print(f"[{e}] 线程异常")
-        
-        if mode == "2":
-            print(INFO + "当前模式: 所有课程循环喵课")
-            while course_list:
-                if input(STAR + "按一下回车对所有课程喵一次，多按同时喵多次，任意字符退出\n"):
-                    exit()
-                try:
-                    _thread.start_new_thread(submit_sequential, (semester_info,))
-                except Exception as e:
-                    print(f"[{e}] 线程异常")
-        
-        if mode == "0":
-            exit()
+    print(INFO + "开始按课程顺序持续选课，按 Ctrl+C 手动终止")
+    try:
+        submit_sequential(semester_info)
+    except KeyboardInterrupt:
+        print("\n" + INFO + "已手动终止选课")
